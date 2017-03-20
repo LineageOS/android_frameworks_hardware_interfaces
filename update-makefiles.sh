@@ -19,11 +19,15 @@ packages=$(pushd frameworks/hardware/interfaces > /dev/null; \
                 '{printf("android.frameworks"); for(i=1;i<NF;i++){printf(".%s", $i);}; printf("@%s\n", $NF);}'; \
            popd > /dev/null)
 
+package_roots="-r android.hidl:system/libhidl/transport \
+               -r android.frameworks:frameworks/hardware/interfaces \
+               -r android.hardware:hardware/interfaces"
+
 for p in $packages; do
   echo "Updating $p";
-  hidl-gen -Lmakefile -r android.frameworks:frameworks/hardware/interfaces -r android.hidl:system/libhidl/transport $p;
+  hidl-gen -Lmakefile ${package_roots} $p;
   rc=$?; if [[ $rc != 0 ]]; then exit $rc; fi
-  hidl-gen -Landroidbp -r android.frameworks:frameworks/hardware/interfaces -r android.hidl:system/libhidl/transport $p;
+  hidl-gen -Landroidbp ${package_roots} $p;
   rc=$?; if [[ $rc != 0 ]]; then exit $rc; fi
 done
 
