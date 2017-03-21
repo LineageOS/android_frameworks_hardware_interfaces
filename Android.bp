@@ -2,4 +2,5 @@
 subdirs = [
     "sensorservice/1.0",
     "sensorservice/1.0/vts/functional",
+    "vr/composer/1.0",
 ]
