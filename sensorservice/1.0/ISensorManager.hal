@@ -17,6 +17,8 @@
 package android.frameworks.sensorservice@1.0;
 
 import IDirectReportChannel;
+import IEventQueue;
+import IEventQueueCallback;
 
 import android.hardware.sensors@1.0::SensorInfo;
 import android.hardware.sensors@1.0::SensorType;
@@ -101,6 +103,21 @@ interface ISensorManager {
      */
     createGrallocDirectChannel(handle buffer, uint64_t size)
                     generates (IDirectReportChannel chan, Result result);
+
+    /**
+     * Create a sensor event queue.
+     *
+     * Create a sensor event queue with an IEventQueueCallback object.
+     * Subsequently, one can enable sensors on the event queue so that sensor
+     * events are passed via the specified callback.
+     *
+     * @param  callback the callback to call on events. Must not be null.
+     * @return queue    the event queue created. null on failure.
+     * @return result   OK if successful, BAD_VALUE if callback is null,
+     *                  or other Result values for any underlying errors.
+     */
+    createEventQueue(IEventQueueCallback callback)
+          generates (IEventQueue queue, Result result);
 };
 
 

@@ -5,6 +5,8 @@ filegroup {
     srcs: [
         "types.hal",
         "IDirectReportChannel.hal",
+        "IEventQueue.hal",
+        "IEventQueueCallback.hal",
         "ISensorManager.hal",
     ],
 }
@@ -19,6 +21,8 @@ genrule {
     out: [
         "android/frameworks/sensorservice/1.0/types.cpp",
         "android/frameworks/sensorservice/1.0/DirectReportChannelAll.cpp",
+        "android/frameworks/sensorservice/1.0/EventQueueAll.cpp",
+        "android/frameworks/sensorservice/1.0/EventQueueCallbackAll.cpp",
         "android/frameworks/sensorservice/1.0/SensorManagerAll.cpp",
     ],
 }
@@ -37,6 +41,16 @@ genrule {
         "android/frameworks/sensorservice/1.0/BnHwDirectReportChannel.h",
         "android/frameworks/sensorservice/1.0/BpHwDirectReportChannel.h",
         "android/frameworks/sensorservice/1.0/BsDirectReportChannel.h",
+        "android/frameworks/sensorservice/1.0/IEventQueue.h",
+        "android/frameworks/sensorservice/1.0/IHwEventQueue.h",
+        "android/frameworks/sensorservice/1.0/BnHwEventQueue.h",
+        "android/frameworks/sensorservice/1.0/BpHwEventQueue.h",
+        "android/frameworks/sensorservice/1.0/BsEventQueue.h",
+        "android/frameworks/sensorservice/1.0/IEventQueueCallback.h",
+        "android/frameworks/sensorservice/1.0/IHwEventQueueCallback.h",
+        "android/frameworks/sensorservice/1.0/BnHwEventQueueCallback.h",
+        "android/frameworks/sensorservice/1.0/BpHwEventQueueCallback.h",
+        "android/frameworks/sensorservice/1.0/BsEventQueueCallback.h",
         "android/frameworks/sensorservice/1.0/ISensorManager.h",
         "android/frameworks/sensorservice/1.0/IHwSensorManager.h",
         "android/frameworks/sensorservice/1.0/BnHwSensorManager.h",

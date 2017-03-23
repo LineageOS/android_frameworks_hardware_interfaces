@@ -16,13 +16,22 @@
 
 package android.frameworks.sensorservice@1.0;
 
-enum Result : int32_t {
-    OK                  = 0,
-    NOT_EXIST,
-    NO_MEMORY,
-    NO_INIT,
-    PERMISSION_DENIED,
-    BAD_VALUE,
-    INVALID_OPERATION,
-    UNKNOWN_ERROR
+import android.hardware.sensors@1.0::Event;
+
+/**
+ * An IEventQueueCallback describes the callback that is called upon
+ * any events.
+ */
+interface IEventQueueCallback {
+    /**
+     * When any event is obtained from the sensor, this function must be called
+     * with the event data.
+     *
+     * Implementation of this function must finish in short time predictably.
+     * It must never block or run for extended period of time. It must offload
+     * heavy computation to a separate thread.
+     *
+     * @param event the event data.
+     */
+    oneway onEvent(Event event);
 };
