@@ -69,15 +69,14 @@ interface ISensorManager {
      *           int64_t[8]
      *   0x0058  int32_t[4]  reserved (set to zero)
      *
-     * @param mem     the shared memory to use, must be ashmem. Its size must be
-     *                greater than or equal to
-     *                SensorsEventFormatOffset::TOTAL_LENGTH (which is 104).
-     * @param size    the intended size to be used, must be less than or equal
-     *                to the size of the memory.
+     * @param mem     the shared memory to use, must be ashmem.
+     * @param size    the intended size to be used. The following must be true:
+     *                SensorsEventFormatOffset::TOTAL_LENGTH <= size <= mem.size
      *
      * @return chan   The created channel, or NULL if failure.
      * @return result OK if successful;
-     *                BAD_VALUE if mem.size() < TOTAL_LENGTH;
+     *                BAD_VALUE if size > mem.size();
+     *                BAD_VALUE if size < TOTAL_LENGTH;
      *                NO_MEMORY, NO_INIT, BAD_VALUE for underlying errors;
      *                UNKNOWN_ERROR if the underlying error is not recognized;
      *                UNKNOWN_ERROR if the underlying call returns channelId = 0
