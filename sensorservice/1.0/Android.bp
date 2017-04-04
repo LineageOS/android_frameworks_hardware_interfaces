@@ -36,6 +36,7 @@ genrule {
     ],
     out: [
         "android/frameworks/sensorservice/1.0/types.h",
+        "android/frameworks/sensorservice/1.0/hwtypes.h",
         "android/frameworks/sensorservice/1.0/IDirectReportChannel.h",
         "android/frameworks/sensorservice/1.0/IHwDirectReportChannel.h",
         "android/frameworks/sensorservice/1.0/BnHwDirectReportChannel.h",
