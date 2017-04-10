@@ -50,7 +50,9 @@ static inline ::testing::AssertionResult isOk(const Return<T> &ret) {
       ? ::testing::AssertionSuccess()
       : ::testing::AssertionFailure()) << ret.description();
 }
+
 template <>
+__attribute__((__unused__))
 inline ::testing::AssertionResult isOk(const Return<Result> &ret) {
   return ((ret.isOk() && ret == Result::OK)
       ? ::testing::AssertionSuccess()
@@ -58,6 +60,7 @@ inline ::testing::AssertionResult isOk(const Return<Result> &ret) {
       << ret.description() << ", "
       << (ret.isOk() ? toString(static_cast<Result>(ret)) : "");
 }
+
 static inline ::testing::AssertionResult isOk(Result result) {
   using ::android::frameworks::sensorservice::V1_0::toString;
   return (result == Result::OK
@@ -228,15 +231,27 @@ TEST_F(SensorManagerTest, Accelerometer) {
       ASSERT_OK(result);
       ASSERT_NE(chan, nullptr);
 
-      ASSERT_OK(chan->configure(handle, RateLevel::FAST)); // ~200Hz
+      int32_t returnedToken;
+      ASSERT_OK(chan->configure(handle, RateLevel::FAST, [&](auto token, auto res) {
+        ASSERT_OK(res);
+        ASSERT_GT(token, 0);
+        returnedToken = token;
+      })); // ~200Hz
       std::this_thread::sleep_for(500ms);
-      ASSERT_OK(chan->configure(handle, RateLevel::STOP));
+      ASSERT_OK(chan->configure(handle, RateLevel::STOP, [](auto token, auto res) {
+        ASSERT_OK(res);
+        ASSERT_EQ(token, 0);
+      }));
 
       auto events = parseEvents(static_cast<uint8_t *>(buf.get()), memSize);
 
       EXPECT_TRUE(isIncreasing(events.begin(), events.end(), [](const auto &event) {
         return event.timestamp;
       })) << "timestamp is not monotonically increasing";
+      for (const auto &event : events) {
+        EXPECT_EQ(returnedToken, event.sensorHandle)
+            << "configure token and sensor handle don't match.";
+      }
     }));
   }));
 }
