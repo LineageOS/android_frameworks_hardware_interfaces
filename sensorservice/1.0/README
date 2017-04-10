@@ -44,15 +44,19 @@ Usage typically looks like this (transaction errors are not handled):
                 chan = c; res = r;
             });
     if (res != Result::OK) { /* error handling */ }
-    if (chan->configure(sensorHandle, RateLevel::FAST) != Result::OK) {
-        /* error handling */
-    }
+    chan->configure(sensorHandle, RateLevel::FAST, [&](auto token, auto result) {
+        if (result != Result::OK) {
+            /* error handling */
+        }
+    });
 
     /* obtain sensor events from shared memory */
 
-    if (chan->configure(sensorHandle, RateLevel::STOP) != Result::OK) {
-        /* error handling */
-    }
+    chan->configure(sensorHandle, RateLevel::STOP, [&](auto token, auto result) {
+        if (result != Result::OK) {
+            /* error handling */
+        }
+    });
 
     /*
      * Free the channel.

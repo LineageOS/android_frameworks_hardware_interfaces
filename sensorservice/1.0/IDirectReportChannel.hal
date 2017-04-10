@@ -45,6 +45,12 @@ interface IDirectReportChannel {
      *                     BAD_VALUE if parameter is invalid (for example,
      *                     rate level is not supported by sensor, etc);
      *                     INVALID_OPERATION if functionality is not supported.
+     * @return token       the token used to distinguish sensor events from
+     *                     multiple different sensors of the same type in a
+     *                     single direct channel, or 0 if: (1) no such token
+     *                     may be returned or (2) error (in which case result
+     *                     must be value other than OK).
      */
-    configure(int32_t sensorHandle, RateLevel rate) generates (Result result);
+    configure(int32_t sensorHandle, RateLevel rate)
+            generates (int32_t token, Result result);
 };
