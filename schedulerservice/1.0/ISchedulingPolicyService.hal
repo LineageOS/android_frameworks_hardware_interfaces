@@ -32,4 +32,12 @@ interface ISchedulingPolicyService {
      */
     requestPriority(int32_t pid, int32_t tid, int32_t priority)
         generates (bool success);
+
+    /**
+     * Must return 0 if no priority is allowed.
+     *
+     * @return priority Max priority that can be set with
+     *                  requestPriority.
+     */
+    getMaxAllowedPriority() generates (int32_t priority);
 };
