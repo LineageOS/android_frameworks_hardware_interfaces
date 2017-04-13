@@ -363,6 +363,11 @@ const char* ASensor_getStringType(ASensor const* sensor) {
     return reinterpret_cast<const SensorInfo *>(sensor)->typeAsString.c_str();
 }
 
+extern "C" float ASensor_getMaxRange(ASensor const* sensor) {
+    RETURN_IF_SENSOR_IS_NULL(nanf(""));
+    return reinterpret_cast<const SensorInfo *>(sensor)->maxRange;
+}
+
 #if 0
 int ASensor_getReportingMode(ASensor const* sensor) {
     RETURN_IF_SENSOR_IS_NULL(AREPORTING_MODE_INVALID);
