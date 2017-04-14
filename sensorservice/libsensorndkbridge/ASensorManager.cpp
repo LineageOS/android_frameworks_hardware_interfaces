@@ -155,7 +155,7 @@ ASensorEventQueue *ASensorManager::createEventQueue(
         return NULL;
     }
 
-    queue->incStrong(NULL);
+    queue->incStrong(NULL /* id */);
 
     LOG(VERBOSE) << "Returning event queue " << queue.get();
     return queue.get();
@@ -166,7 +166,7 @@ void ASensorManager::destroyEventQueue(ASensorEventQueue *queue) {
 
     queue->invalidate();
 
-    delete queue;
+    queue->decStrong(NULL /* id */);
     queue = NULL;
 }
 
