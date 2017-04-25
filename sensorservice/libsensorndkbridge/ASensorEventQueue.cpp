@@ -132,5 +132,6 @@ void ASensorEventQueue::dispatchCallback() {
 
 void ASensorEventQueue::invalidate() {
     mLooper->invalidateSensorQueue(this);
+    setImpl(nullptr);
 }
 
