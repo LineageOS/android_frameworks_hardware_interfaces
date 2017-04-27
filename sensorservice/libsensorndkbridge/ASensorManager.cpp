@@ -21,6 +21,7 @@
 #define LOG_TAG "libsensorndkbridge"
 #include <android-base/logging.h>
 #include <android/looper.h>
+#include <hidl/HidlTransportSupport.h>
 #include <sensors/convert.h>
 
 using android::hardware::sensors::V1_0::SensorInfo;
@@ -138,6 +139,7 @@ ASensorEventQueue *ASensorManager::createEventQueue(
     sp<ASensorEventQueue> queue =
         new ASensorEventQueue(looper, ident, callback, data);
 
+    ::android::hardware::setMinSchedulerPolicy(queue, SCHED_FIFO, 98);
     Result result;
     Return<void> ret =
         mManager->createEventQueue(
