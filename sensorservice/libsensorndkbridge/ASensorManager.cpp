@@ -29,6 +29,7 @@ using android::frameworks::sensorservice::V1_0::ISensorManager;
 using android::frameworks::sensorservice::V1_0::Result;
 using android::hardware::sensors::V1_0::SensorType;
 using android::sp;
+using android::wp;
 using android::Mutex;
 using android::status_t;
 using android::OK;
@@ -55,11 +56,29 @@ ASensorManager *ASensorManager::getInstance() {
     return sInstance;
 }
 
+void ASensorManager::SensorDeathRecipient::serviceDied(
+        uint64_t, const wp<::android::hidl::base::V1_0::IBase>&) {
+    LOG(ERROR) << "Sensor service died. Cleanup sensor manager instance!";
+    Mutex::Autolock autoLock(gLock);
+    delete sInstance;
+    sInstance = NULL;
+}
+
 ASensorManager::ASensorManager()
     : mInitCheck(NO_INIT) {
     mManager = ISensorManager::getService();
     if (mManager != NULL) {
-        mInitCheck = OK;
+        mDeathRecipient = new SensorDeathRecipient();
+        Return<bool> linked = mManager->linkToDeath(mDeathRecipient, /*cookie*/ 0);
+        if (!linked.isOk()) {
+            LOG(ERROR) << "Transaction error in linking to sensor service death: " <<
+                    linked.description().c_str();
+        } else if (!linked) {
+            LOG(WARNING) << "Unable to link to sensor service death notifications";
+        } else {
+            LOG(DEBUG) << "Link to sensor service death notification successful";
+            mInitCheck = OK;
+        }
     }
 }
 
