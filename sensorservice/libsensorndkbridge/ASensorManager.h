@@ -46,10 +46,19 @@ struct ASensorManager {
     void destroyEventQueue(ASensorEventQueue *queue);
 
 private:
+
+    struct SensorDeathRecipient : public android::hardware::hidl_death_recipient
+    {
+        // hidl_death_recipient interface
+        virtual void serviceDied(uint64_t cookie,
+                const ::android::wp<::android::hidl::base::V1_0::IBase>& who) override;
+    };
+
     using ISensorManager = android::frameworks::sensorservice::V1_0::ISensorManager;
     using SensorInfo = android::hardware::sensors::V1_0::SensorInfo;
 
     static ASensorManager *sInstance;
+    android::sp<SensorDeathRecipient> mDeathRecipient = nullptr;
 
     android::status_t mInitCheck;
     android::sp<ISensorManager> mManager;
