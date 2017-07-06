@@ -35,4 +35,8 @@ cc_library_shared {
     header_libs: [
         "libandroid_sensor_headers",
     ],
+
+    export_header_lib_headers: [
+        "libandroid_sensor_headers",
+    ],
 }
