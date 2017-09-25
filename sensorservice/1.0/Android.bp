@@ -87,3 +87,87 @@ cc_library {
         "android.hardware.sensors@1.0",
     ],
 }
+
+genrule {
+    name: "android.frameworks.sensorservice@1.0-adapter-helper_genc++",
+    tools: ["hidl-gen"],
+    cmd: "$(location hidl-gen) -o $(genDir) -Lc++-adapter-sources -randroid.frameworks:frameworks/hardware/interfaces -randroid.hardware:hardware/interfaces -randroid.hidl:system/libhidl/transport android.frameworks.sensorservice@1.0",
+    srcs: [
+        ":android.frameworks.sensorservice@1.0_hal",
+    ],
+    out: [
+        "android/frameworks/sensorservice/1.0/ADirectReportChannel.cpp",
+        "android/frameworks/sensorservice/1.0/AEventQueue.cpp",
+        "android/frameworks/sensorservice/1.0/AEventQueueCallback.cpp",
+        "android/frameworks/sensorservice/1.0/ASensorManager.cpp",
+    ],
+}
+
+genrule {
+    name: "android.frameworks.sensorservice@1.0-adapter-helper_genc++_headers",
+    tools: ["hidl-gen"],
+    cmd: "$(location hidl-gen) -o $(genDir) -Lc++-adapter-headers -randroid.frameworks:frameworks/hardware/interfaces -randroid.hardware:hardware/interfaces -randroid.hidl:system/libhidl/transport android.frameworks.sensorservice@1.0",
+    srcs: [
+        ":android.frameworks.sensorservice@1.0_hal",
+    ],
+    out: [
+        "android/frameworks/sensorservice/1.0/ADirectReportChannel.h",
+        "android/frameworks/sensorservice/1.0/AEventQueue.h",
+        "android/frameworks/sensorservice/1.0/AEventQueueCallback.h",
+        "android/frameworks/sensorservice/1.0/ASensorManager.h",
+    ],
+}
+
+
+cc_library {
+    name: "android.frameworks.sensorservice@1.0-adapter-helper",
+    defaults: ["hidl-module-defaults"],
+    generated_sources: ["android.frameworks.sensorservice@1.0-adapter-helper_genc++"],
+    generated_headers: ["android.frameworks.sensorservice@1.0-adapter-helper_genc++_headers"],
+    export_generated_headers: ["android.frameworks.sensorservice@1.0-adapter-helper_genc++_headers"],
+    vendor_available: true,
+    shared_libs: [
+        "libhidlbase",
+        "libhidltransport",
+        "libhwbinder",
+        "liblog",
+        "libutils",
+        "libcutils",
+        "libhidladapter",
+        "android.frameworks.sensorservice@1.0",
+        "android.hardware.sensors@1.0",
+        "android.hardware.sensors@1.0-adapter-helper",
+        "android.hidl.base@1.0-adapter-helper",
+    ],
+    export_shared_lib_headers: [
+        "libhidlbase",
+        "libhidltransport",
+        "libhwbinder",
+        "libutils",
+        "libhidladapter",
+        "android.frameworks.sensorservice@1.0",
+        "android.hardware.sensors@1.0",
+        "android.hardware.sensors@1.0-adapter-helper",
+        "android.hidl.base@1.0-adapter-helper",
+    ],
+}
+
+genrule {
+    name: "android.frameworks.sensorservice@1.0-adapter_genc++",
+    tools: ["hidl-gen"],
+    cmd: "$(location hidl-gen) -o $(genDir) -Lc++-adapter-main -randroid.frameworks:frameworks/hardware/interfaces -randroid.hardware:hardware/interfaces -randroid.hidl:system/libhidl/transport android.frameworks.sensorservice@1.0",
+    out: ["main.cpp"]}
+
+cc_test {
+    name: "android.frameworks.sensorservice@1.0-adapter",
+    shared_libs: [
+        "libhidladapter",
+        "libhidlbase",
+        "libhidltransport",
+        "libutils",
+        "android.frameworks.sensorservice@1.0",
+        "android.hardware.sensors@1.0",
+        "android.frameworks.sensorservice@1.0-adapter-helper",
+    ],
+    generated_sources: ["android.frameworks.sensorservice@1.0-adapter_genc++"],
+}
