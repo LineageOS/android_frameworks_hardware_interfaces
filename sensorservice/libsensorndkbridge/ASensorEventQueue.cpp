@@ -30,9 +30,8 @@ using android::Mutex;
 using android::hardware::Return;
 
 ASensorEventQueue::ASensorEventQueue(
-        ALooper *looper, int ident, ALooper_callbackFunc callback, void *data)
+        ALooper *looper, ALooper_callbackFunc callback, void *data)
     : mLooper(looper),
-      mIdent(ident),
       mCallback(callback),
       mData(data) {
 }
