@@ -80,6 +80,35 @@ cc_library {
 }
 
 genrule {
+    name: "android.frameworks.displayservice-V1.0-java_gen_java",
+    tools: ["hidl-gen"],
+    cmd: "$(location hidl-gen) -o $(genDir) -Ljava -randroid.frameworks:frameworks/hardware/interfaces -randroid.hidl:system/libhidl/transport android.frameworks.displayservice@1.0",
+    srcs: [
+        ":android.frameworks.displayservice@1.0_hal",
+    ],
+    out: [
+        "android/frameworks/displayservice/V1_0/Status.java",
+        "android/frameworks/displayservice/V1_0/IDisplayEventReceiver.java",
+        "android/frameworks/displayservice/V1_0/IDisplayService.java",
+        "android/frameworks/displayservice/V1_0/IEventCallback.java",
+    ],
+}
+
+java_library {
+    name: "android.frameworks.displayservice-V1.0-java",
+    no_framework_libs: true,
+    defaults: ["hidl-java-module-defaults"],
+    srcs: [":android.frameworks.displayservice-V1.0-java_gen_java"],
+    libs: [
+        "hwbinder",
+        "android.hidl.base-V1.0-java",
+    ]
+}
+
+// This package does not export any types. Not creating java constants export.
+
+
+genrule {
     name: "android.frameworks.displayservice@1.0-adapter-helper_genc++",
     tools: ["hidl-gen"],
     cmd: "$(location hidl-gen) -o $(genDir) -Lc++-adapter-sources -randroid.frameworks:frameworks/hardware/interfaces -randroid.hidl:system/libhidl/transport android.frameworks.displayservice@1.0",
@@ -106,7 +135,6 @@ genrule {
         "android/frameworks/displayservice/1.0/AEventCallback.h",
     ],
 }
-
 
 cc_library {
     name: "android.frameworks.displayservice@1.0-adapter-helper",
