@@ -98,7 +98,7 @@ ssize_t ASensorEventQueue::getEvents(ASensorEvent *events, size_t count) {
 }
 
 int ASensorEventQueue::hasEvents() const {
-    return mQueue.empty();
+    return !mQueue.empty();
 }
 
 Return<void> ASensorEventQueue::onEvent(const Event &event) {
