@@ -107,17 +107,17 @@ struct BatteryHealthSnapshotArgs {
 
     /* The instance of this snapshot. */
     enum BatterySnapshotType : int32_t {
-        MIN_TEMP,            // Snapshot at min batt temp over 24hrs.
-        MAX_TEMP,            // Snapshot at max batt temp over 24hrs.
-        MIN_RESISTANCE,      // Snapshot at min batt resistance over 24hrs.
-        MAX_RESISTANCE,      // Snapshot at max batt resistance over 24hrs.
-        MIN_VOLTAGE,         // Snapshot at min batt voltage over 24hrs.
-        MAX_VOLTAGE,         // Snapshot at max batt voltage over 24hrs.
-        MIN_CURRENT,         // Snapshot at min batt current over 24hrs.
-        MAX_CURRENT,         // Snapshot at max batt current over 24hrs.
-        MIN_BATT_LEVEL,      // Snapshot at min battery level (SoC) over 24hrs.
-        MAX_BATT_LEVEL,      // Snapshot at max battery level (SoC) over 24hrs.
-        AVG_RESISTANCE,      // Snapshot at average battery resistance over 24hrs.
+        MIN_TEMP = 1,      // Snapshot at min batt temp over 24hrs.
+        MAX_TEMP,          // Snapshot at max batt temp over 24hrs.
+        MIN_RESISTANCE,    // Snapshot at min batt resistance over 24hrs.
+        MAX_RESISTANCE,    // Snapshot at max batt resistance over 24hrs.
+        MIN_VOLTAGE,       // Snapshot at min batt voltage over 24hrs.
+        MAX_VOLTAGE,       // Snapshot at max batt voltage over 24hrs.
+        MIN_CURRENT,       // Snapshot at min batt current over 24hrs.
+        MAX_CURRENT,       // Snapshot at max batt current over 24hrs.
+        MIN_BATT_LEVEL,    // Snapshot at min battery level (SoC) over 24hrs.
+        MAX_BATT_LEVEL,    // Snapshot at max battery level (SoC) over 24hrs.
+        AVG_RESISTANCE,    // Snapshot at average battery resistance over 24hrs.
     };
     BatterySnapshotType type;
 
