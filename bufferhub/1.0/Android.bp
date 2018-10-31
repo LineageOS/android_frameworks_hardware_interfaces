@@ -9,7 +9,9 @@ hidl_interface {
         enabled: false,
     },
     srcs: [
+        "IBufferClient.hal",
         "IBufferHub.hal",
+        "types.hal",
     ],
     interfaces: [
         "android.hardware.graphics.common@1.2",
