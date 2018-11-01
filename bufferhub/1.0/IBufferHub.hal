@@ -1,0 +1,44 @@
+/*
+ * Copyright (C) 2018 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package android.frameworks.bufferhub@1.0;
+
+import android.hardware.graphics.common@1.2::HardwareBufferDescription;
+
+interface IBufferHub {
+    /**
+     * Allocates a new buffer.
+     *
+     * @param description The desired buffer parameters for the new buffer.
+     * @return nativeHandle An opaque handle that can be used to import the
+     *     buffer.
+     *
+     * @sa @llndk libnativewindow#AHardwareBuffer_Desc.
+     */
+    allocateBuffer(HardwareBufferDescription description)
+        generates (handle nativeHandle);
+
+    /**
+     * Fetches a bufferClient interface from a provided handle.
+     *
+     * @param nativeHandle Handle received from allocateBuffer.
+     * @return bufferClient An bufferClient interface associated with
+     *     the nativeHandle returned from allocateBuffer().
+     *
+     * TODO(b/116681016): Define and implement the real BufferClient interface.
+     */
+    importBuffer(handle nativeHandle)
+        generates (interface bufferClient);
+};
