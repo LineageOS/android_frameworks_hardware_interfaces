@@ -46,6 +46,10 @@ interface ICameraDeviceCallback {
     /**
      * Callback called when a capture request is completed.
      *
+     * Note: The framework must call this callback serially if it opts to
+     *       utilize an fmq for either the result metadata and/or any of the
+     *       physicalCaptureResultInfo.physicalCameraMetadata values.
+     *
      * @param result result metadata
      * @param resultExtras data structure containing information about the
      *        frame number, request id, etc of the request.
