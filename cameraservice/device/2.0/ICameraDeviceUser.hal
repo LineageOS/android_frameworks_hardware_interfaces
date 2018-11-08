@@ -63,6 +63,10 @@ interface ICameraDeviceUser {
     /**
      * Submit a list of capture requests.
      *
+     * Note: Clients must call submitRequestList() serially if they opt
+     *       to utilize an fmq (obtained by calling getCaptureRequestMetadataQueue)
+     *       for any CaptureRequest's physicalCameraSettings metadata.
+
      * @param requestList The list of CaptureRequests
      * @param isRepeating Whether the set of requests repeats indefinitely.
      *
