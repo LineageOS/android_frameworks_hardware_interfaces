@@ -16,29 +16,34 @@
 package android.frameworks.bufferhub@1.0;
 
 import android.hardware.graphics.common@1.2::HardwareBufferDescription;
+import IBufferClient;
 
 interface IBufferHub {
     /**
      * Allocates a new buffer.
      *
      * @param description The desired buffer parameters for the new buffer.
+     * @param userMetadataSize The size of the user defined metadata in bytes.
      * @return nativeHandle An opaque handle that can be used to import the
      *     buffer.
+     * @return status The result of this operation. NO_ERROR on success,
+     *     error code on failure.
      *
      * @sa @llndk libnativewindow#AHardwareBuffer_Desc.
      */
-    allocateBuffer(HardwareBufferDescription description)
-        generates (handle nativeHandle);
+    allocateBuffer(HardwareBufferDescription description,
+                   uint32_t userMetadataSize)
+        generates (IBufferClient bufferClient, BufferHubStatus status);
 
     /**
      * Fetches a bufferClient interface from a provided handle.
      *
      * @param nativeHandle Handle received from allocateBuffer.
      * @return bufferClient An bufferClient interface associated with
-     *     the nativeHandle returned from allocateBuffer().
-     *
-     * TODO(b/116681016): Define and implement the real BufferClient interface.
+     *     the nativeHandle passed in.
+     * @return status The result of this operation. NO_ERROR on success,
+     *     error code on failure.
      */
     importBuffer(handle nativeHandle)
-        generates (interface bufferClient);
+        generates (IBufferClient bufferClient, BufferHubStatus status);
 };
