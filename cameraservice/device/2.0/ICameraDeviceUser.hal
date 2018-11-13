@@ -166,8 +166,10 @@ interface ICameraDeviceUser {
      *
      * Note: This method will not block and instead will fail with
      *       Status::INVALID_OPERATION if there are active repeating requests.
+     *
+     * @return status the status code of the operation.
      */
-    waitUntilIdle();
+    waitUntilIdle() generates (Status status);
 
     /**
      * flush all the requests pending on the device.
