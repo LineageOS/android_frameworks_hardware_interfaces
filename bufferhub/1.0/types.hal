@@ -20,4 +20,5 @@ enum BufferHubStatus : uint32_t {
     ALLOCATION_FAILED,      // Buffer allocation failed
     INVALID_TOKEN,          // Token is invalid
     BUFFER_FREED,           // Buffer is freed already
+    CLIENT_CLOSED,          // Client is closed already
 };
