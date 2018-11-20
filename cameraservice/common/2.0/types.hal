@@ -168,3 +168,15 @@ struct VendorTagSection {
      */
     vec<VendorTag> tags;
 };
+
+struct ProviderIdAndVendorTagSections {
+    /**
+     * provider id
+     */
+    uint64_t providerId;
+
+    /**
+     * List of VendorTagSections provided by this provider
+     */
+    vec<VendorTagSection> vendorTagSections;
+};

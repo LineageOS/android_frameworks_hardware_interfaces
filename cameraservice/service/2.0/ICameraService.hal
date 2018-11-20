@@ -20,7 +20,7 @@ import android.frameworks.cameraservice.device@2.0::CameraMetadata;
 import android.frameworks.cameraservice.device@2.0::ICameraDeviceUser;
 import android.frameworks.cameraservice.device@2.0::ICameraDeviceCallback;
 import android.frameworks.cameraservice.common@2.0::Status;
-import android.frameworks.cameraservice.common@2.0::VendorTagSection;
+import android.frameworks.cameraservice.common@2.0::ProviderIdAndVendorTagSections;
 import ICameraServiceListener;
 
 interface ICameraService {
@@ -81,7 +81,7 @@ interface ICameraService {
         generates (Status status, CameraMetadata metadata);
 
     /**
-     * Read in the vendor tag sections from the camera server.
+     * Read in the provider ids and corresponding vendor tag sections from the camera server.
      * Intended to be used by the native code of CameraMetadata to correctly
      * interpret camera metadata with vendor tags.
      *
@@ -89,8 +89,10 @@ interface ICameraService {
      *       is not provided for this.
      *
      * @return status the status code of the operation.
-     * @return vendorTagSections the list of vendor tag sections requested.
+     * @return providerIdAndVendorTagSections the list of provider ids and corresponding
+     *         vendor tag sections.
      */
     getCameraVendorTagSections()
-        generates (Status status, vec<VendorTagSection> vendorTagSections);
+        generates (Status status,
+                   vec<ProviderIdAndVendorTagSections> providerIdAndVendorTagSections);
 };
