@@ -24,26 +24,30 @@ interface IBufferHub {
      *
      * @param description The desired buffer parameters for the new buffer.
      * @param userMetadataSize The size of the user defined metadata in bytes.
-     * @return nativeHandle An opaque handle that can be used to import the
-     *     buffer.
      * @return status The result of this operation. NO_ERROR on success,
      *     error code on failure.
-     *
-     * @sa @llndk libnativewindow#AHardwareBuffer_Desc.
+     * @return bufferClient An bufferClient interface associated with
+     *     the buffer just allocated.
+     * @return bufferTraits the struct containing the information of the buffer.
      */
     allocateBuffer(HardwareBufferDescription description,
                    uint32_t userMetadataSize)
-        generates (IBufferClient bufferClient, BufferHubStatus status);
+        generates (BufferHubStatus status,
+                   IBufferClient bufferClient,
+                   BufferTraits bufferTraits);
 
     /**
      * Fetches a bufferClient interface from a provided handle.
      *
      * @param nativeHandle Handle received from allocateBuffer.
-     * @return bufferClient An bufferClient interface associated with
-     *     the nativeHandle passed in.
      * @return status The result of this operation. NO_ERROR on success,
      *     error code on failure.
+     * @return bufferClient An bufferClient interface associated with
+     *     the nativeHandle passed in.
+     * @return bufferTraits the struct containing the information of the buffer.
      */
     importBuffer(handle nativeHandle)
-        generates (IBufferClient bufferClient, BufferHubStatus status);
+        generates (BufferHubStatus status,
+                   IBufferClient bufferClient,
+                   BufferTraits bufferTraits);
 };
