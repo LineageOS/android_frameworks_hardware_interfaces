@@ -163,3 +163,22 @@ struct BatteryCausedShutdown {
     /* The last recorded battery voltage prior to shutdown. */
     int32_t voltageMicroV;
 };
+
+/** Represents USB port overheat event. */
+struct UsbPortOverheatEvent {
+
+    /* Temperature of USB port at USB plug event, in 1/10ths of degree C. */
+    int32_t plugTemperatureDeciC;
+
+    /* Maximum temperature of USB port during overheat event, in 1/10ths of degree C. */
+    int32_t maxTemperatureDeciC;
+
+    /* Time between USB plug event and overheat threshold trip, in seconds. */
+    int32_t timeToOverheat;
+
+    /* Time between overheat threshold trip and hysteresis, in seconds. */
+    int32_t timeToHysteresis;
+
+    /* Time between hysteresis and active mitigation ending, in seconds. */
+    int32_t timeToInactive;
+};

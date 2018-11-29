@@ -80,4 +80,14 @@ interface IStats {
      *     the last recorded battery voltage prior to shutdown.
      */
     oneway reportBatteryCausedShutdown(BatteryCausedShutdown batteryCausedShutdown);
+
+    /**
+     * Report a USB port overheat event.
+     *
+     * @param UsbPortOverheatEvent A UsbPortOverheatEvent struct with port
+     *        temperature at USB plug event, max port temperature seen during
+     *        overheat, and time between the plug event, trip event and
+     *        mitigation cleared event.
+     */
+    oneway reportUsbPortOverheatEvent(UsbPortOverheatEvent usbPortOverheatEvent);
 };
