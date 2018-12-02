@@ -93,12 +93,12 @@ struct PhysicalDropDetected {
  *
  * Each list of buckets represents the number of times
  * the battery has charged past equal-sized fractions of full capacity.
- * For example, given "12, 11, 10, 9, 8, 7, 6, 5", the battery has charged
- * past 1/8th full 12 times, 2/8ths full 11 times, etc.
+ * For example, given the vector [12, 11, 10, 9, 8, 7, 6, 5], the battery
+ * has charged past 1/8th full 12 times, 2/8ths full 11 times, etc.
  */
 struct ChargeCycles {
 
-    int32_t[8] cycleBucket;
+    vec<int32_t> cycleBucket;
 };
 
 
