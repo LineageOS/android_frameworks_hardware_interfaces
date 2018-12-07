@@ -28,7 +28,7 @@ interface IStats {
      * @param speakerImpedance A SpeakerImpedance struct that holds speaker
      *     location and a detected milli ohms.
      */
-    reportSpeakerImpedance(SpeakerImpedance speakerImpedance);
+    oneway reportSpeakerImpedance(SpeakerImpedance speakerImpedance);
 
     /**
      * Report the detected failure of a hardware component.
@@ -36,7 +36,7 @@ interface IStats {
      * @param hardwareFailed A HardwareFailed struct indicating hardware type
      *     that failed, location, and error code.
      */
-    reportHardwareFailed(HardwareFailed hardwareFailed);
+    oneway reportHardwareFailed(HardwareFailed hardwareFailed);
 
     /**
      * Report the detection of a physical drop event, as detected by
@@ -46,14 +46,14 @@ interface IStats {
      *     confidence that a drop occured, peak detected acceleration, and the
      *     duration of freefall.
      */
-    reportPhysicalDropDetected(PhysicalDropDetected physicalDropDetected);
+    oneway reportPhysicalDropDetected(PhysicalDropDetected physicalDropDetected);
 
     /**
      * Report bucketed battery charge cycles.
      *
      * @param chargeCycles A struct with battery charge cycle buckets.
      */
-    reportChargeCycles(ChargeCycles chargeCycles);
+    oneway reportChargeCycles(ChargeCycles chargeCycles);
 
     /**
      * Report battery health snapshot, aggregated.
@@ -63,7 +63,7 @@ interface IStats {
      * @param args A BatteryHealthSnapshotArgs struct that contains the above
      *     listed metrics.
      */
-    reportBatteryHealthSnapshot(BatteryHealthSnapshotArgs args);
+    oneway reportBatteryHealthSnapshot(BatteryHealthSnapshotArgs args);
 
     /**
      * Report slow I/O operations, aggregated.
@@ -71,7 +71,7 @@ interface IStats {
      * @param slowIo A SlowIo struct holding the type of slow IO operation and
      *     the number of slow IO operations of this type over 24hrs.
      */
-    reportSlowIo(SlowIo slowIo);
+    oneway reportSlowIo(SlowIo slowIo);
 
     /**
      * Report a shutdown event caused by low battery.
@@ -79,5 +79,5 @@ interface IStats {
      * @param batteryCausedShutdown A BatteryCausedShutdown struct containing
      *     the last recorded battery voltage prior to shutdown.
      */
-    reportBatteryCausedShutdown(BatteryCausedShutdown batteryCausedShutdown);
+    oneway reportBatteryCausedShutdown(BatteryCausedShutdown batteryCausedShutdown);
 };
