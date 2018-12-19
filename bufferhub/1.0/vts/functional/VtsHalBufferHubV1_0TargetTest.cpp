@@ -146,7 +146,7 @@ TEST_F(HalBufferHubVts, DuplicateAndImportBuffer) {
     ASSERT_TRUE(client->duplicate(dup_cb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
     ASSERT_NE(token.getNativeHandle(), nullptr);
-    EXPECT_EQ(token->numInts, 1);
+    EXPECT_GT(token->numInts, 1);
     EXPECT_EQ(token->numFds, 0);
 
     sp<IBufferClient> client2;
@@ -185,14 +185,15 @@ TEST_F(HalBufferHubVts, ImportNullToken) {
     EXPECT_FALSE(isValidTraits(bufferTraits));
 }
 
-// Test calling IBufferHub::import with an nonexistant token. This test has a very little chance to
-// fail (number of existing tokens / 2 ^ 32)
+// Test calling IBufferHub::import with an nonexistant token.
 TEST_F(HalBufferHubVts, ImportInvalidToken) {
     sp<IBufferHub> bufferHub = IBufferHub::getService();
     ASSERT_NE(nullptr, bufferHub.get());
 
-    native_handle_t* tokenHandle = native_handle_create(/*numFds=*/0, /*numInts=*/1);
+    native_handle_t* tokenHandle = native_handle_create(/*numFds=*/0, /*numInts=*/2);
     tokenHandle->data[0] = 0;
+    // Assign a random number since we cannot know the HMAC value.
+    tokenHandle->data[1] = 42;
 
     hidl_handle invalidToken(tokenHandle);
     BufferHubStatus ret;
@@ -240,7 +241,7 @@ TEST_F(HalBufferHubVts, ImportFreedBuffer) {
     ASSERT_TRUE(client->duplicate(dup_cb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
     ASSERT_NE(token.getNativeHandle(), nullptr);
-    EXPECT_EQ(token->numInts, 1);
+    EXPECT_GT(token->numInts, 1);
     EXPECT_EQ(token->numFds, 0);
 
     // Close the client. Now the token should be invalid.
