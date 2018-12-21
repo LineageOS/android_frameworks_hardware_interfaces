@@ -43,12 +43,6 @@ const size_t kUserMetadataSize = 1;
 class HalBufferHubVts : public ::testing::VtsHalHidlTargetTestBase {};
 
 // TOOD(b/121345852): use bit_cast to unpack bufferInfo when C++20 becomes available.
-uint32_t bufferId(const BufferTraits& bufferTraits) {
-    uint32_t bufferId;
-    memcpy(&bufferId, &bufferTraits.bufferInfo->data[1], sizeof(bufferId));
-    return bufferId;
-}
-
 uint32_t clientStateMask(const BufferTraits& bufferTraits) {
     uint32_t clientStateMask;
     memcpy(&clientStateMask, &bufferTraits.bufferInfo->data[2], sizeof(clientStateMask));
@@ -60,7 +54,7 @@ uint32_t clientStateMask(const BufferTraits& bufferTraits) {
 // 2. have a non-null gralloc handle
 // 3. have a non-null buffer info handle with:
 //    1) metadata fd >= 0 (valid fd)
-//    2) buffer Id > 0
+//    2) buffer Id >= 0
 //    3) client bit mask != 0
 //    4) user metadata size = kUserMetadataSize
 //
@@ -74,6 +68,7 @@ bool isValidTraits(const BufferTraits& bufferTraits) {
         return false;
     }
     const int metadataFd = bufferInfo->data[0];
+    const int bufferId = bufferInfo->data[1];
     uint32_t userMetadataSize;
     memcpy(&userMetadataSize, &bufferTraits.bufferInfo->data[3], sizeof(userMetadataSize));
 
@@ -81,7 +76,7 @@ bool isValidTraits(const BufferTraits& bufferTraits) {
     return desc.format == kDesc.format && desc.height == kDesc.height &&
            desc.layers == kDesc.layers && desc.usage == kDesc.usage && desc.width == kDesc.width &&
            bufferTraits.bufferHandle.getNativeHandle() != nullptr && metadataFd >= 0 &&
-           bufferId(bufferTraits) > 0U && clientStateMask(bufferTraits) != 0U &&
+           bufferId >= 0 && clientStateMask(bufferTraits) != 0U &&
            userMetadataSize == kUserMetadataSize;
 }
 
@@ -193,7 +188,9 @@ TEST_F(HalBufferHubVts, DuplicateAndImportBuffer) {
 
     // Since they are two clients of one buffer, the id should be the same but client state bit mask
     // should be different.
-    EXPECT_EQ(bufferId(bufferTraits), bufferId(bufferTraits2));
+    const int bufferId1 = bufferTraits.bufferInfo->data[1];
+    const int bufferId2 = bufferTraits2.bufferInfo->data[1];
+    EXPECT_EQ(bufferId1, bufferId2);
     EXPECT_NE(clientStateMask(bufferTraits), clientStateMask(bufferTraits2));
 }
 
