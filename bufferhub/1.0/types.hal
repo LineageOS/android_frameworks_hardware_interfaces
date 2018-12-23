@@ -15,10 +15,36 @@
  */
 package android.frameworks.bufferhub@1.0;
 
+import android.hardware.graphics.common@1.2::HardwareBufferDescription;
+
 enum BufferHubStatus : uint32_t {
     NO_ERROR = 0,           // Success
     ALLOCATION_FAILED,      // Buffer allocation failed
     INVALID_TOKEN,          // Token is invalid
     BUFFER_FREED,           // Buffer is freed already
     CLIENT_CLOSED,          // Client is closed already
+    MAX_CLIENT,             // Buffer cannot have more clients
+};
+
+/**
+ * A struct containing necessary information to create a buffer object.
+ */
+struct BufferTraits {
+    /**
+     * Static descriptors (such as height, width, format) of the buffer.
+     */
+    HardwareBufferDescription bufferDesc;
+
+    /**
+     * Handle comes from android.hardware.graphics.allocator@2.0. Represents
+     * the underlying physical buffer object.
+     */
+    handle bufferHandle;
+
+    /**
+     * Client-defined handle containing other useful params and fds. The data
+     * in the handle may be exposed by ll-ndk clients but in a format that is
+     * described by the client. This actual structure will not be exposed.
+     */
+    handle bufferInfo;
 };
