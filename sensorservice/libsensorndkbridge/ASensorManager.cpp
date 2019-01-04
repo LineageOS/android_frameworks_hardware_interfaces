@@ -392,6 +392,11 @@ extern "C" float ASensor_getMaxRange(ASensor const* sensor) {
     return reinterpret_cast<const SensorInfo *>(sensor)->maxRange;
 }
 
+int ASensor_getHandle(ASensor const* sensor) {
+    RETURN_IF_SENSOR_IS_NULL(ASENSOR_INVALID);
+    return reinterpret_cast<const SensorInfo*>(sensor)->sensorHandle;
+}
+
 #if 0
 int ASensor_getReportingMode(ASensor const* sensor) {
     RETURN_IF_SENSOR_IS_NULL(AREPORTING_MODE_INVALID);
