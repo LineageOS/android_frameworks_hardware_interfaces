@@ -21,6 +21,7 @@
 #include <android/frameworks/bufferhub/1.0/IBufferHub.h>
 #include <android/hardware_buffer.h>
 #include <gtest/gtest.h>
+#include <ui/BufferHubDefs.h>
 
 using ::android::frameworks::bufferhub::V1_0::BufferHubStatus;
 using ::android::frameworks::bufferhub::V1_0::BufferTraits;
@@ -41,19 +42,47 @@ const size_t kUserMetadataSize = 1;
 
 class HalBufferHubVts : public ::testing::VtsHalHidlTargetTestBase {};
 
+// TOOD(b/121345852): use bit_cast to unpack bufferInfo when C++20 becomes available.
+uint32_t bufferId(const BufferTraits& bufferTraits) {
+    uint32_t bufferId;
+    memcpy(&bufferId, &bufferTraits.bufferInfo->data[1], sizeof(bufferId));
+    return bufferId;
+}
+
+uint32_t clientStateMask(const BufferTraits& bufferTraits) {
+    uint32_t clientStateMask;
+    memcpy(&clientStateMask, &bufferTraits.bufferInfo->data[2], sizeof(clientStateMask));
+    return clientStateMask;
+}
+
 // Helper function to verify that given bufferTrais:
 // 1. is consistent with kDesc
 // 2. have a non-null gralloc handle
-// 3. have a null buffer info handle (not implemented)
+// 3. have a non-null buffer info handle with:
+//    1) metadata fd >= 0 (valid fd)
+//    2) buffer Id > 0
+//    3) client bit mask != 0
+//    4) user metadata size = kUserMetadataSize
+//
+// The structure of BufferTraits.bufferInfo handle is defined in ui/BufferHubDefs.h
 bool isValidTraits(const BufferTraits& bufferTraits) {
     AHardwareBuffer_Desc desc;
     memcpy(&desc, &bufferTraits.bufferDesc, sizeof(AHardwareBuffer_Desc));
+
+    const native_handle_t* bufferInfo = bufferTraits.bufferInfo.getNativeHandle();
+    if (bufferInfo == nullptr) {
+        return false;
+    }
+    const int metadataFd = bufferInfo->data[0];
+    uint32_t userMetadataSize;
+    memcpy(&userMetadataSize, &bufferTraits.bufferInfo->data[3], sizeof(userMetadataSize));
+
     // Not comparing stride because it's unknown before allocation
     return desc.format == kDesc.format && desc.height == kDesc.height &&
            desc.layers == kDesc.layers && desc.usage == kDesc.usage && desc.width == kDesc.width &&
-           bufferTraits.bufferHandle.getNativeHandle() != nullptr &&
-           // TODO(b/116681016): check bufferInfo once implemented
-           bufferTraits.bufferInfo.getNativeHandle() == nullptr;
+           bufferTraits.bufferHandle.getNativeHandle() != nullptr && metadataFd >= 0 &&
+           bufferId(bufferTraits) > 0U && clientStateMask(bufferTraits) != 0U &&
+           userMetadataSize == kUserMetadataSize;
 }
 
 // Test IBufferHub::allocateBuffer then IBufferClient::close
@@ -161,7 +190,11 @@ TEST_F(HalBufferHubVts, DuplicateAndImportBuffer) {
     EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
     EXPECT_NE(nullptr, client2.get());
     EXPECT_TRUE(isValidTraits(bufferTraits2));
-    // TODO(b/116681016): check id, user metadata size and client state mask
+
+    // Since they are two clients of one buffer, the id should be the same but client state bit mask
+    // should be different.
+    EXPECT_EQ(bufferId(bufferTraits), bufferId(bufferTraits2));
+    EXPECT_NE(clientStateMask(bufferTraits), clientStateMask(bufferTraits2));
 }
 
 // Test calling IBufferHub::import with nullptr. Must not crash the service
