@@ -182,3 +182,21 @@ struct UsbPortOverheatEvent {
     /* Time between hysteresis and active mitigation ending, in seconds. */
     int32_t timeToInactive;
 };
+
+/*
+ * Represents the speech DSP stat of total uptime, downtime, crash count and recover count.
+ */
+struct SpeechDspStat {
+
+    /* Speech DSP total up time in milliseconds. */
+    int32_t totalUptimeMillis;
+
+    /* Speech DSP total down time in milliseconds. */
+    int32_t totalDowntimeMillis;
+
+    /* Speech DSP total crash count. */
+    int32_t totalCrashCount;
+
+    /* Speech DSP recover mechanism trigger count. */
+    int32_t totalRecoverCount;
+};
