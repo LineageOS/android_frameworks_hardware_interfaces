@@ -21,6 +21,7 @@
 #include <android/frameworks/bufferhub/1.0/IBufferHub.h>
 #include <android/hardware_buffer.h>
 #include <gtest/gtest.h>
+#include <ui/BufferHubDefs.h>
 
 using ::android::frameworks::bufferhub::V1_0::BufferHubStatus;
 using ::android::frameworks::bufferhub::V1_0::BufferTraits;
@@ -41,19 +42,42 @@ const size_t kUserMetadataSize = 1;
 
 class HalBufferHubVts : public ::testing::VtsHalHidlTargetTestBase {};
 
+// TOOD(b/121345852): use bit_cast to unpack bufferInfo when C++20 becomes available.
+uint32_t clientStateMask(const BufferTraits& bufferTraits) {
+    uint32_t clientStateMask;
+    memcpy(&clientStateMask, &bufferTraits.bufferInfo->data[2], sizeof(clientStateMask));
+    return clientStateMask;
+}
+
 // Helper function to verify that given bufferTrais:
 // 1. is consistent with kDesc
 // 2. have a non-null gralloc handle
-// 3. have a null buffer info handle (not implemented)
+// 3. have a non-null buffer info handle with:
+//    1) metadata fd >= 0 (valid fd)
+//    2) buffer Id >= 0
+//    3) client bit mask != 0
+//    4) user metadata size = kUserMetadataSize
+//
+// The structure of BufferTraits.bufferInfo handle is defined in ui/BufferHubDefs.h
 bool isValidTraits(const BufferTraits& bufferTraits) {
     AHardwareBuffer_Desc desc;
     memcpy(&desc, &bufferTraits.bufferDesc, sizeof(AHardwareBuffer_Desc));
+
+    const native_handle_t* bufferInfo = bufferTraits.bufferInfo.getNativeHandle();
+    if (bufferInfo == nullptr) {
+        return false;
+    }
+    const int metadataFd = bufferInfo->data[0];
+    const int bufferId = bufferInfo->data[1];
+    uint32_t userMetadataSize;
+    memcpy(&userMetadataSize, &bufferTraits.bufferInfo->data[3], sizeof(userMetadataSize));
+
     // Not comparing stride because it's unknown before allocation
     return desc.format == kDesc.format && desc.height == kDesc.height &&
            desc.layers == kDesc.layers && desc.usage == kDesc.usage && desc.width == kDesc.width &&
-           bufferTraits.bufferHandle.getNativeHandle() != nullptr &&
-           // TODO(b/116681016): check bufferInfo once implemented
-           bufferTraits.bufferInfo.getNativeHandle() == nullptr;
+           bufferTraits.bufferHandle.getNativeHandle() != nullptr && metadataFd >= 0 &&
+           bufferId >= 0 && clientStateMask(bufferTraits) != 0U &&
+           userMetadataSize == kUserMetadataSize;
 }
 
 // Test IBufferHub::allocateBuffer then IBufferClient::close
@@ -146,7 +170,7 @@ TEST_F(HalBufferHubVts, DuplicateAndImportBuffer) {
     ASSERT_TRUE(client->duplicate(dup_cb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
     ASSERT_NE(token.getNativeHandle(), nullptr);
-    EXPECT_EQ(token->numInts, 1);
+    EXPECT_GT(token->numInts, 1);
     EXPECT_EQ(token->numFds, 0);
 
     sp<IBufferClient> client2;
@@ -161,7 +185,13 @@ TEST_F(HalBufferHubVts, DuplicateAndImportBuffer) {
     EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
     EXPECT_NE(nullptr, client2.get());
     EXPECT_TRUE(isValidTraits(bufferTraits2));
-    // TODO(b/116681016): check id, user metadata size and client state mask
+
+    // Since they are two clients of one buffer, the id should be the same but client state bit mask
+    // should be different.
+    const int bufferId1 = bufferTraits.bufferInfo->data[1];
+    const int bufferId2 = bufferTraits2.bufferInfo->data[1];
+    EXPECT_EQ(bufferId1, bufferId2);
+    EXPECT_NE(clientStateMask(bufferTraits), clientStateMask(bufferTraits2));
 }
 
 // Test calling IBufferHub::import with nullptr. Must not crash the service
@@ -185,14 +215,15 @@ TEST_F(HalBufferHubVts, ImportNullToken) {
     EXPECT_FALSE(isValidTraits(bufferTraits));
 }
 
-// Test calling IBufferHub::import with an nonexistant token. This test has a very little chance to
-// fail (number of existing tokens / 2 ^ 32)
+// Test calling IBufferHub::import with an nonexistant token.
 TEST_F(HalBufferHubVts, ImportInvalidToken) {
     sp<IBufferHub> bufferHub = IBufferHub::getService();
     ASSERT_NE(nullptr, bufferHub.get());
 
-    native_handle_t* tokenHandle = native_handle_create(/*numFds=*/0, /*numInts=*/1);
+    native_handle_t* tokenHandle = native_handle_create(/*numFds=*/0, /*numInts=*/2);
     tokenHandle->data[0] = 0;
+    // Assign a random number since we cannot know the HMAC value.
+    tokenHandle->data[1] = 42;
 
     hidl_handle invalidToken(tokenHandle);
     BufferHubStatus ret;
@@ -240,7 +271,7 @@ TEST_F(HalBufferHubVts, ImportFreedBuffer) {
     ASSERT_TRUE(client->duplicate(dup_cb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
     ASSERT_NE(token.getNativeHandle(), nullptr);
-    EXPECT_EQ(token->numInts, 1);
+    EXPECT_GT(token->numInts, 1);
     EXPECT_EQ(token->numFds, 0);
 
     // Close the client. Now the token should be invalid.

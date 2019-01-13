@@ -17,6 +17,9 @@
 cc_test {
     name: "VtsHalBufferHubV1_0TargetTest",
     header_libs: [
+        // TODO(b/118893702): remove dependency once ui/BufferHubDefs.h moved
+        // off dvr_api.h
+        "libdvr_headers",
         "libnativewindow_headers",
     ],
     srcs: [
@@ -28,6 +31,7 @@ cc_test {
         "libhidlbase",
         "libhwbinder",
         "liblog",
+        "libui",
         "libutils",
     ],
     static_libs: [
