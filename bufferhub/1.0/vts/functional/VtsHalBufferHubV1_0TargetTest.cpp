@@ -45,7 +45,7 @@ class HalBufferHubVts : public ::testing::VtsHalHidlTargetTestBase {};
 // TOOD(b/121345852): use bit_cast to unpack bufferInfo when C++20 becomes available.
 uint32_t clientStateMask(const BufferTraits& bufferTraits) {
     uint32_t clientStateMask;
-    memcpy(&clientStateMask, &bufferTraits.bufferInfo->data[2], sizeof(clientStateMask));
+    memcpy(&clientStateMask, &bufferTraits.bufferInfo->data[3], sizeof(clientStateMask));
     return clientStateMask;
 }
 
@@ -54,9 +54,10 @@ uint32_t clientStateMask(const BufferTraits& bufferTraits) {
 // 2. have a non-null gralloc handle
 // 3. have a non-null buffer info handle with:
 //    1) metadata fd >= 0 (valid fd)
-//    2) buffer Id >= 0
-//    3) client bit mask != 0
-//    4) user metadata size = kUserMetadataSize
+//    2) event fd >= 0 (valid fd)
+//    3) buffer Id >= 0
+//    4) client bit mask != 0
+//    5) user metadata size = kUserMetadataSize
 //
 // The structure of BufferTraits.bufferInfo handle is defined in ui/BufferHubDefs.h
 bool isValidTraits(const BufferTraits& bufferTraits) {
@@ -68,15 +69,16 @@ bool isValidTraits(const BufferTraits& bufferTraits) {
         return false;
     }
     const int metadataFd = bufferInfo->data[0];
-    const int bufferId = bufferInfo->data[1];
+    const int eventFd = bufferInfo->data[1];
+    const int bufferId = bufferInfo->data[2];
     uint32_t userMetadataSize;
-    memcpy(&userMetadataSize, &bufferTraits.bufferInfo->data[3], sizeof(userMetadataSize));
+    memcpy(&userMetadataSize, &bufferTraits.bufferInfo->data[4], sizeof(userMetadataSize));
 
     // Not comparing stride because it's unknown before allocation
     return desc.format == kDesc.format && desc.height == kDesc.height &&
            desc.layers == kDesc.layers && desc.usage == kDesc.usage && desc.width == kDesc.width &&
            bufferTraits.bufferHandle.getNativeHandle() != nullptr && metadataFd >= 0 &&
-           bufferId >= 0 && clientStateMask(bufferTraits) != 0U &&
+           eventFd >= 0 && bufferId >= 0 && clientStateMask(bufferTraits) != 0U &&
            userMetadataSize == kUserMetadataSize;
 }
 
@@ -188,8 +190,8 @@ TEST_F(HalBufferHubVts, DuplicateAndImportBuffer) {
 
     // Since they are two clients of one buffer, the id should be the same but client state bit mask
     // should be different.
-    const int bufferId1 = bufferTraits.bufferInfo->data[1];
-    const int bufferId2 = bufferTraits2.bufferInfo->data[1];
+    const int bufferId1 = bufferTraits.bufferInfo->data[2];
+    const int bufferId2 = bufferTraits2.bufferInfo->data[2];
     EXPECT_EQ(bufferId1, bufferId2);
     EXPECT_NE(clientStateMask(bufferTraits), clientStateMask(bufferTraits2));
 }
