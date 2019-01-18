@@ -199,4 +199,46 @@ struct SpeechDspStat {
 
     /* Speech DSP recover mechanism trigger count. */
     int32_t totalRecoverCount;
+
+};
+
+/*
+ * Generic vendor atom that allows dynamically allocated atoms to be uploaded
+ * through statsd.
+ *
+ * Here's an example that uses this struct:
+ *     VendorAtom atom = {
+ *         .atomId  = 100000,
+ *         .values  = {2, 70000, 5.2, 4, "a"}
+ *     };
+ *
+ * The resulting LogEvent must have the following fields:
+ *     Index    Value
+ *     0x1      2
+ *     0x2      70000
+ *     0x3      5.2
+ *     0x4      4
+ *     0x5      "a"
+ */
+struct VendorAtom {
+
+    /**
+     * Vendor or OEM reverse domain name. Must be less than 50 characters.
+     * Ex. "com.google.pixel"
+     */
+    string reverseDomainName;
+
+    /* Atom ID. Must be between 100,000 - 199,999 to indicate non-AOSP field. */
+    int32_t atomId;
+
+    /* Supported field types for this struct. */
+    safe_union Value {
+        int32_t intValue;
+        int64_t longValue;
+        float floatValue;
+        string stringValue;
+    };
+
+    /* Vector of fields in the order that the LogEvent should be filled. */
+    vec<Value> values;
 };
