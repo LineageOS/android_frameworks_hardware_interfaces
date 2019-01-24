@@ -22,6 +22,7 @@ hidl_interface {
         "SlowIo",
         "SpeakerImpedance",
         "UsbPortOverheatEvent",
+        "SpeechDspStat",
     ],
     gen_java: true,
 }
