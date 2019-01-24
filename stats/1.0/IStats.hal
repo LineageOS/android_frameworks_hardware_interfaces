@@ -90,4 +90,12 @@ interface IStats {
      *        mitigation cleared event.
      */
     oneway reportUsbPortOverheatEvent(UsbPortOverheatEvent usbPortOverheatEvent);
+
+    /**
+     * Report the Speech DSP state value.
+     *
+     * @param speechDspStat A SpeechDspStat struct that provide
+     *     Speech DSP state
+     */
+    oneway reportSpeechDspStat(SpeechDspStat speechDspStat);
 };
