@@ -21,6 +21,7 @@
 #include <android/frameworks/bufferhub/1.0/IBufferHub.h>
 #include <android/hardware_buffer.h>
 #include <gtest/gtest.h>
+#include <hwbinder/IPCThreadState.h>
 #include <ui/BufferHubDefs.h>
 
 using ::android::frameworks::bufferhub::V1_0::BufferHubStatus;
@@ -40,7 +41,17 @@ const AHardwareBuffer_Desc kDesc = {
     /*rfu0=*/0UL,    /*rfu1=*/0ULL};
 const size_t kUserMetadataSize = 1;
 
-class HalBufferHubVts : public ::testing::VtsHalHidlTargetTestBase {};
+class HalBufferHubVts : public ::testing::VtsHalHidlTargetTestBase {
+   protected:
+    void SetUp() override {
+        VtsHalHidlTargetTestBase::SetUp();
+
+        mBufferHub = IBufferHub::getService();
+        ASSERT_NE(nullptr, mBufferHub.get());
+    }
+
+    sp<IBufferHub> mBufferHub;
+};
 
 // TOOD(b/121345852): use bit_cast to unpack bufferInfo when C++20 becomes available.
 uint32_t clientStateMask(const BufferTraits& bufferTraits) {
@@ -82,9 +93,6 @@ bool isValidTraits(const BufferTraits& bufferTraits) {
 
 // Test IBufferHub::allocateBuffer then IBufferClient::close
 TEST_F(HalBufferHubVts, AllocateAndFreeBuffer) {
-    sp<IBufferHub> bufferHub = IBufferHub::getService();
-    ASSERT_NE(nullptr, bufferHub.get());
-
     HardwareBufferDescription desc;
     memcpy(&desc, &kDesc, sizeof(HardwareBufferDescription));
 
@@ -97,7 +105,7 @@ TEST_F(HalBufferHubVts, AllocateAndFreeBuffer) {
         client = outClient;
         bufferTraits = std::move(traits);
     };
-    ASSERT_TRUE(bufferHub->allocateBuffer(desc, kUserMetadataSize, callback).isOk());
+    ASSERT_TRUE(mBufferHub->allocateBuffer(desc, kUserMetadataSize, callback).isOk());
     EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
     ASSERT_NE(nullptr, client.get());
     EXPECT_TRUE(isValidTraits(bufferTraits));
@@ -106,11 +114,8 @@ TEST_F(HalBufferHubVts, AllocateAndFreeBuffer) {
     EXPECT_EQ(BufferHubStatus::CLIENT_CLOSED, client->close());
 }
 
-// Test IBufferClient::duplicate after IBufferClient::close
-TEST_F(HalBufferHubVts, DuplicateFreedBuffer) {
-    sp<IBufferHub> bufferHub = IBufferHub::getService();
-    ASSERT_NE(nullptr, bufferHub.get());
-
+// Test destroying IBufferClient without calling close
+TEST_F(HalBufferHubVts, DestroyClientWithoutClose) {
     HardwareBufferDescription desc;
     memcpy(&desc, &kDesc, sizeof(HardwareBufferDescription));
 
@@ -123,7 +128,36 @@ TEST_F(HalBufferHubVts, DuplicateFreedBuffer) {
         client = outClient;
         bufferTraits = std::move(traits);
     };
-    ASSERT_TRUE(bufferHub->allocateBuffer(desc, kUserMetadataSize, callback).isOk());
+    ASSERT_TRUE(mBufferHub->allocateBuffer(desc, kUserMetadataSize, callback).isOk());
+    EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
+    ASSERT_NE(nullptr, client.get());
+    EXPECT_TRUE(isValidTraits(bufferTraits));
+
+    // Not calling client->close() before destruction here intentionally to see if anything would
+    // break. User is recommended to call close() in any case.
+    client.clear();
+
+    // Flush the command to remote side, wait for 10ms, and ping service again to check if alive
+    hardware::IPCThreadState::self()->flushCommands();
+    usleep(10000);
+    ASSERT_TRUE(mBufferHub->ping().isOk());
+}
+
+// Test IBufferClient::duplicate after IBufferClient::close
+TEST_F(HalBufferHubVts, DuplicateFreedBuffer) {
+    HardwareBufferDescription desc;
+    memcpy(&desc, &kDesc, sizeof(HardwareBufferDescription));
+
+    BufferHubStatus ret;
+    sp<IBufferClient> client;
+    BufferTraits bufferTraits = {};
+    IBufferHub::allocateBuffer_cb callback = [&](const auto& status, const auto& outClient,
+                                                 const auto& traits) {
+        ret = status;
+        client = outClient;
+        bufferTraits = std::move(traits);
+    };
+    ASSERT_TRUE(mBufferHub->allocateBuffer(desc, kUserMetadataSize, callback).isOk());
     EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
     ASSERT_NE(nullptr, client.get());
     EXPECT_TRUE(isValidTraits(bufferTraits));
@@ -142,9 +176,6 @@ TEST_F(HalBufferHubVts, DuplicateFreedBuffer) {
 
 // Test normal import process using IBufferHub::import function
 TEST_F(HalBufferHubVts, DuplicateAndImportBuffer) {
-    sp<IBufferHub> bufferHub = IBufferHub::getService();
-    ASSERT_NE(nullptr, bufferHub.get());
-
     HardwareBufferDescription desc;
     memcpy(&desc, &kDesc, sizeof(HardwareBufferDescription));
 
@@ -157,7 +188,7 @@ TEST_F(HalBufferHubVts, DuplicateAndImportBuffer) {
         client = outClient;
         bufferTraits = std::move(traits);
     };
-    ASSERT_TRUE(bufferHub->allocateBuffer(desc, kUserMetadataSize, callback).isOk());
+    ASSERT_TRUE(mBufferHub->allocateBuffer(desc, kUserMetadataSize, callback).isOk());
     EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
     ASSERT_NE(nullptr, client.get());
     EXPECT_TRUE(isValidTraits(bufferTraits));
@@ -181,7 +212,7 @@ TEST_F(HalBufferHubVts, DuplicateAndImportBuffer) {
         client2 = outClient;
         bufferTraits2 = std::move(traits);
     };
-    ASSERT_TRUE(bufferHub->importBuffer(token, import_cb).isOk());
+    ASSERT_TRUE(mBufferHub->importBuffer(token, import_cb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
     EXPECT_NE(nullptr, client2.get());
     EXPECT_TRUE(isValidTraits(bufferTraits2));
@@ -192,13 +223,13 @@ TEST_F(HalBufferHubVts, DuplicateAndImportBuffer) {
     const int bufferId2 = bufferTraits2.bufferInfo->data[1];
     EXPECT_EQ(bufferId1, bufferId2);
     EXPECT_NE(clientStateMask(bufferTraits), clientStateMask(bufferTraits2));
+
+    EXPECT_EQ(BufferHubStatus::NO_ERROR, client->close());
+    EXPECT_EQ(BufferHubStatus::NO_ERROR, client2->close());
 }
 
 // Test calling IBufferHub::import with nullptr. Must not crash the service
 TEST_F(HalBufferHubVts, ImportNullToken) {
-    sp<IBufferHub> bufferHub = IBufferHub::getService();
-    ASSERT_NE(nullptr, bufferHub.get());
-
     hidl_handle nullToken;
     BufferHubStatus ret;
     sp<IBufferClient> client;
@@ -209,7 +240,7 @@ TEST_F(HalBufferHubVts, ImportNullToken) {
         client = outClient;
         bufferTraits = std::move(traits);
     };
-    ASSERT_TRUE(bufferHub->importBuffer(nullToken, import_cb).isOk());
+    ASSERT_TRUE(mBufferHub->importBuffer(nullToken, import_cb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::INVALID_TOKEN);
     EXPECT_EQ(nullptr, client.get());
     EXPECT_FALSE(isValidTraits(bufferTraits));
@@ -217,9 +248,6 @@ TEST_F(HalBufferHubVts, ImportNullToken) {
 
 // Test calling IBufferHub::import with an nonexistant token.
 TEST_F(HalBufferHubVts, ImportInvalidToken) {
-    sp<IBufferHub> bufferHub = IBufferHub::getService();
-    ASSERT_NE(nullptr, bufferHub.get());
-
     native_handle_t* tokenHandle = native_handle_create(/*numFds=*/0, /*numInts=*/2);
     tokenHandle->data[0] = 0;
     // Assign a random number since we cannot know the HMAC value.
@@ -235,7 +263,7 @@ TEST_F(HalBufferHubVts, ImportInvalidToken) {
         client = outClient;
         bufferTraits = std::move(traits);
     };
-    ASSERT_TRUE(bufferHub->importBuffer(invalidToken, import_cb).isOk());
+    ASSERT_TRUE(mBufferHub->importBuffer(invalidToken, import_cb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::INVALID_TOKEN);
     EXPECT_EQ(nullptr, client.get());
     EXPECT_FALSE(isValidTraits(bufferTraits));
@@ -243,9 +271,6 @@ TEST_F(HalBufferHubVts, ImportInvalidToken) {
 
 // Test calling IBufferHub::import after the original IBufferClient is closed
 TEST_F(HalBufferHubVts, ImportFreedBuffer) {
-    sp<IBufferHub> bufferHub = IBufferHub::getService();
-    ASSERT_NE(nullptr, bufferHub.get());
-
     HardwareBufferDescription desc;
     memcpy(&desc, &kDesc, sizeof(HardwareBufferDescription));
 
@@ -258,7 +283,7 @@ TEST_F(HalBufferHubVts, ImportFreedBuffer) {
         client = outClient;
         bufferTraits = std::move(traits);
     };
-    ASSERT_TRUE(bufferHub->allocateBuffer(desc, kUserMetadataSize, callback).isOk());
+    ASSERT_TRUE(mBufferHub->allocateBuffer(desc, kUserMetadataSize, callback).isOk());
     EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
     ASSERT_NE(nullptr, client.get());
     EXPECT_TRUE(isValidTraits(bufferTraits));
@@ -285,7 +310,7 @@ TEST_F(HalBufferHubVts, ImportFreedBuffer) {
         client2 = outClient;
         bufferTraits2 = std::move(traits);
     };
-    ASSERT_TRUE(bufferHub->importBuffer(token, import_cb).isOk());
+    ASSERT_TRUE(mBufferHub->importBuffer(token, import_cb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::INVALID_TOKEN);
     EXPECT_EQ(nullptr, client2.get());
     EXPECT_FALSE(isValidTraits(bufferTraits2));
