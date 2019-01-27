@@ -23,6 +23,7 @@ hidl_interface {
         "SpeakerImpedance",
         "UsbPortOverheatEvent",
         "SpeechDspStat",
+        "VendorAtom",
     ],
     gen_java: true,
 }

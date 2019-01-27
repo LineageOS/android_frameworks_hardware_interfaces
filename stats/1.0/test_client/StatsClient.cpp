@@ -29,6 +29,8 @@ using android::frameworks::stats::V1_0::IStats;
 using android::frameworks::stats::V1_0::SlowIo;
 using android::frameworks::stats::V1_0::SpeakerImpedance;
 using android::frameworks::stats::V1_0::UsbPortOverheatEvent;
+using android::frameworks::stats::V1_0::VendorAtom;
+using Value = android::frameworks::stats::V1_0::VendorAtom::Value;
 
 void expect_message(int32_t action) {
     std::cout << "expect the following log in logcat:\n";
@@ -64,11 +66,12 @@ int main(int argc, char* argv[]) {
         {"SlowIo", no_argument, 0, 'i'},
         {"BatteryCausedShutdown", no_argument, 0, 's'},
         {"UsbPortOverheatEvent", no_argument, 0, 'u'},
+        {"VendorAtom", no_argument, 0, 'v'},
     };
 
     int c;
     int hal_calls = 0;
-    while ((c = getopt_long(argc, argv, "Sfynisu", opts, nullptr)) != -1) {
+    while ((c = getopt_long(argc, argv, "Sfynisuv", opts, nullptr)) != -1) {
         switch (c) {
             case 'S': {
                 SpeakerImpedance left_obj = {.speakerLocation = 0,
@@ -130,6 +133,25 @@ int main(int argc, char* argv[]) {
                                               .timeToInactive = 3};
                 client->reportUsbPortOverheatEvent(event);
                 expect_message(android::util::USB_PORT_OVERHEAT_EVENT_REPORTED);
+                ++hal_calls;
+                break;
+            }
+            case 'v': {
+                std::vector<Value> values;
+                Value tmp;
+                tmp.longValue(70000);
+                values.push_back(tmp);
+                tmp.intValue(7);
+                values.push_back(tmp);
+                tmp.floatValue(8.5);
+                values.push_back(tmp);
+                tmp.stringValue("test");
+                values.push_back(tmp);
+                tmp.intValue(3);
+                values.push_back(tmp);
+                VendorAtom atom = {
+                    .reverseDomainName = "com.google.pixel", .atomId = 100001, .values = values};
+                client->reportVendorAtom(atom);
                 ++hal_calls;
                 break;
             }

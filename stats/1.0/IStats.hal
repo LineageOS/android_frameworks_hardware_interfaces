@@ -98,4 +98,14 @@ interface IStats {
      *     Speech DSP state
      */
     oneway reportSpeechDspStat(SpeechDspStat speechDspStat);
+
+    /**
+     * Report a custom vendor atom.
+     *
+     * @param VendorAtom A VendorAtom struct that specifies the atom ID, field
+     *        types, and data from the client that must be logged in statsd.
+     *        Whether or not the atom is uploaded must be determined by the
+     *        atom ID and server-side configs.
+     */
+    oneway reportVendorAtom(VendorAtom vendorAtom);
 };
