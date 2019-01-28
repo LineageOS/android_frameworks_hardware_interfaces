@@ -69,6 +69,7 @@ struct HardwareFailed {
         SPEAKER_SHORT,
         FINGERPRINT_SENSOR_BROKEN,
         FINGERPRINT_TOO_MANY_DEAD_PIXELS,
+        DEGRADE,
     };
     HardwareErrorCode errorCode;
 };
