@@ -167,11 +167,11 @@ TEST_F(HalBufferHubVts, DuplicateFreedBuffer) {
     ASSERT_EQ(BufferHubStatus::NO_ERROR, client->close());
 
     hidl_handle token;
-    IBufferClient::duplicate_cb dup_cb = [&](const auto& outToken, const auto& status) {
+    IBufferClient::duplicate_cb dupCb = [&](const auto& outToken, const auto& status) {
         token = outToken;
         ret = status;
     };
-    ASSERT_TRUE(client->duplicate(dup_cb).isOk());
+    ASSERT_TRUE(client->duplicate(dupCb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::CLIENT_CLOSED);
     EXPECT_EQ(token.getNativeHandle(), nullptr);
 }
@@ -196,11 +196,11 @@ TEST_F(HalBufferHubVts, DuplicateAndImportBuffer) {
     EXPECT_TRUE(isValidTraits(bufferTraits));
 
     hidl_handle token;
-    IBufferClient::duplicate_cb dup_cb = [&](const auto& outToken, const auto& status) {
+    IBufferClient::duplicate_cb dupCb = [&](const auto& outToken, const auto& status) {
         token = outToken;
         ret = status;
     };
-    ASSERT_TRUE(client->duplicate(dup_cb).isOk());
+    ASSERT_TRUE(client->duplicate(dupCb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
     ASSERT_NE(token.getNativeHandle(), nullptr);
     EXPECT_GT(token->numInts, 1);
@@ -208,13 +208,13 @@ TEST_F(HalBufferHubVts, DuplicateAndImportBuffer) {
 
     sp<IBufferClient> client2;
     BufferTraits bufferTraits2 = {};
-    IBufferHub::importBuffer_cb import_cb = [&](const auto& status, const auto& outClient,
-                                                const auto& traits) {
+    IBufferHub::importBuffer_cb importCb = [&](const auto& status, const auto& outClient,
+                                               const auto& traits) {
         ret = status;
         client2 = outClient;
         bufferTraits2 = std::move(traits);
     };
-    ASSERT_TRUE(mBufferHub->importBuffer(token, import_cb).isOk());
+    ASSERT_TRUE(mBufferHub->importBuffer(token, importCb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
     EXPECT_NE(nullptr, client2.get());
     EXPECT_TRUE(isValidTraits(bufferTraits2));
@@ -236,13 +236,13 @@ TEST_F(HalBufferHubVts, ImportNullToken) {
     BufferHubStatus ret;
     sp<IBufferClient> client;
     BufferTraits bufferTraits = {};
-    IBufferHub::importBuffer_cb import_cb = [&](const auto& status, const auto& outClient,
-                                                const auto& traits) {
+    IBufferHub::importBuffer_cb importCb = [&](const auto& status, const auto& outClient,
+                                               const auto& traits) {
         ret = status;
         client = outClient;
         bufferTraits = std::move(traits);
     };
-    ASSERT_TRUE(mBufferHub->importBuffer(nullToken, import_cb).isOk());
+    ASSERT_TRUE(mBufferHub->importBuffer(nullToken, importCb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::INVALID_TOKEN);
     EXPECT_EQ(nullptr, client.get());
     EXPECT_FALSE(isValidTraits(bufferTraits));
@@ -259,13 +259,13 @@ TEST_F(HalBufferHubVts, ImportInvalidToken) {
     BufferHubStatus ret;
     sp<IBufferClient> client;
     BufferTraits bufferTraits = {};
-    IBufferHub::importBuffer_cb import_cb = [&](const auto& status, const auto& outClient,
-                                                const auto& traits) {
+    IBufferHub::importBuffer_cb importCb = [&](const auto& status, const auto& outClient,
+                                               const auto& traits) {
         ret = status;
         client = outClient;
         bufferTraits = std::move(traits);
     };
-    ASSERT_TRUE(mBufferHub->importBuffer(invalidToken, import_cb).isOk());
+    ASSERT_TRUE(mBufferHub->importBuffer(invalidToken, importCb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::INVALID_TOKEN);
     EXPECT_EQ(nullptr, client.get());
     EXPECT_FALSE(isValidTraits(bufferTraits));
@@ -291,11 +291,11 @@ TEST_F(HalBufferHubVts, ImportFreedBuffer) {
     EXPECT_TRUE(isValidTraits(bufferTraits));
 
     hidl_handle token;
-    IBufferClient::duplicate_cb dup_cb = [&](const auto& outToken, const auto& status) {
+    IBufferClient::duplicate_cb dupCb = [&](const auto& outToken, const auto& status) {
         token = outToken;
         ret = status;
     };
-    ASSERT_TRUE(client->duplicate(dup_cb).isOk());
+    ASSERT_TRUE(client->duplicate(dupCb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
     ASSERT_NE(token.getNativeHandle(), nullptr);
     EXPECT_GT(token->numInts, 1);
@@ -306,13 +306,13 @@ TEST_F(HalBufferHubVts, ImportFreedBuffer) {
 
     sp<IBufferClient> client2;
     BufferTraits bufferTraits2 = {};
-    IBufferHub::importBuffer_cb import_cb = [&](const auto& status, const auto& outClient,
-                                                const auto& traits) {
+    IBufferHub::importBuffer_cb importCb = [&](const auto& status, const auto& outClient,
+                                               const auto& traits) {
         ret = status;
         client2 = outClient;
         bufferTraits2 = std::move(traits);
     };
-    ASSERT_TRUE(mBufferHub->importBuffer(token, import_cb).isOk());
+    ASSERT_TRUE(mBufferHub->importBuffer(token, importCb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::INVALID_TOKEN);
     EXPECT_EQ(nullptr, client2.get());
     EXPECT_FALSE(isValidTraits(bufferTraits2));
