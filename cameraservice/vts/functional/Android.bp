@@ -16,27 +16,25 @@
 
 cc_test {
     name: "VtsHalCameraServiceV2_0TargetTest",
-    defaults: ["hidl_defaults"],
+    defaults: ["VtsHalTargetTestDefaults"],
+
     srcs: ["VtsHalCameraServiceV2_0TargetTest.cpp"],
+    static_libs: [
+        "android.frameworks.cameraservice.device@2.0",
+        "android.frameworks.cameraservice.service@2.0",
+        "android.frameworks.cameraservice.common@2.0",
+        "libfmq",
+    ],
     shared_libs: [
-        "libhwbinder",
-        "libcamera2ndk_vendor",
         "libcamera_metadata",
         "libmediandk",
         "libnativewindow",
-        "libui",
-        "libutils",
-        "libcutils",
         "liblog",
-    ],
-    static_libs: [
-        "android.hardware.camera.common@1.0-helper",
     ],
 
     cflags: [
         // TODO: Currently vts tests can't be vendor:true tests if they use VtsHalHidlTargetTestBase
-        //       (http://b/123320603). As a result even libcamera2ndk_vendor has to also be
-        //       vendor_available: true instead of just a vendor library.
+        //       (http://b/123320603). This is needed for libmediandk's llndk only api.
         "-D__ANDROID_VNDK__",
     ],
 }
