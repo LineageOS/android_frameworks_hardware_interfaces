@@ -26,13 +26,13 @@ interface ICameraDeviceCallback {
      *         frame number, request id, etc, of the request on which the device
      *         error occured, in case the errorCode was CAMERA_BUFFER.
      */
-    oneway  onDeviceError(ErrorCode errorCode,
-                          CaptureResultExtras resultExtras);
+    oneway onDeviceError(ErrorCode errorCode,
+                         CaptureResultExtras resultExtras);
 
     /**
      *  Callback called when the device is idle.
      */
-    oneway  onDeviceIdle();
+    oneway onDeviceIdle();
 
     /**
      *  Callback called when capture starts.
@@ -41,8 +41,8 @@ interface ICameraDeviceCallback {
      *         frame number, request id, etc, of the request.
      *  @param timestamp corresponding to the start (in nanoseconds)
      */
-    oneway  onCaptureStarted(CaptureResultExtras resultExtras,
-                             uint64_t timestamp);
+    oneway onCaptureStarted(CaptureResultExtras resultExtras,
+                            uint64_t timestamp);
     /**
      * Callback called when a capture request is completed.
      *
@@ -70,7 +70,7 @@ interface ICameraDeviceCallback {
      * @param repeatingRequestId the ID of the repeating request
      *        being stopped
      */
-    oneway  onRepeatingRequestError(uint64_t lastFrameNumber,
-                                    int32_t repeatingRequestId);
+    oneway onRepeatingRequestError(uint64_t lastFrameNumber,
+                                   int32_t repeatingRequestId);
 
 };
