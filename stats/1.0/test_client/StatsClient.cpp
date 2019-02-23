@@ -26,8 +26,10 @@ using android::frameworks::stats::V1_0::BatteryHealthSnapshotArgs;
 using android::frameworks::stats::V1_0::ChargeCycles;
 using android::frameworks::stats::V1_0::HardwareFailed;
 using android::frameworks::stats::V1_0::IStats;
+using android::frameworks::stats::V1_0::PhysicalDropDetected;
 using android::frameworks::stats::V1_0::SlowIo;
 using android::frameworks::stats::V1_0::SpeakerImpedance;
+using android::frameworks::stats::V1_0::SpeechDspStat;
 using android::frameworks::stats::V1_0::UsbPortOverheatEvent;
 using android::frameworks::stats::V1_0::VendorAtom;
 using Value = android::frameworks::stats::V1_0::VendorAtom::Value;
@@ -42,11 +44,14 @@ void show_help() {
     std::cout << " arguments:\n";
     std::cout << " -S or --SpeakerImpedance\n";
     std::cout << " -f or --HardwareFailed\n";
+    std::cout << " -p or --PhysicalDropDetected\n";
     std::cout << " -y or --ChargeCycles\n";
     std::cout << " -n or --BatteryHealthSnapshot\n";
     std::cout << " -i or --SlowIo\n";
     std::cout << " -s or --BatteryCausedShutdown\n";
     std::cout << " -u or --UsbPortOverheatEvent\n";
+    std::cout << " -d or --SpeechDspStat\n";
+    std::cout << " -v or --VendorAtom\n";
     std::cout << "Please enable statsd logging using 'cmd stats print-logs'";
     std::cout << "\n\n you can use multiple arguments to trigger multiple events.\n";
 }
@@ -61,17 +66,19 @@ int main(int argc, char* argv[]) {
     static struct option opts[] = {
         {"SpeakerImpedance", no_argument, 0, 'S'},
         {"HardwareFailed", no_argument, 0, 'f'},
+        {"PhysicalDropDetected", no_argument, 0, 'p'},
         {"ChargeCycles", no_argument, 0, 'y'},
         {"BatteryHealthSnapshot", no_argument, 0, 'n'},
         {"SlowIo", no_argument, 0, 'i'},
         {"BatteryCausedShutdown", no_argument, 0, 's'},
         {"UsbPortOverheatEvent", no_argument, 0, 'u'},
+        {"SpeechDspStat", no_argument, 0, 'd'},
         {"VendorAtom", no_argument, 0, 'v'},
     };
 
     int c;
     int hal_calls = 0;
-    while ((c = getopt_long(argc, argv, "Sfynisuv", opts, nullptr)) != -1) {
+    while ((c = getopt_long(argc, argv, "Sfpynisudv", opts, nullptr)) != -1) {
         switch (c) {
             case 'S': {
                 SpeakerImpedance left_obj = {.speakerLocation = 0,
@@ -87,6 +94,14 @@ int main(int argc, char* argv[]) {
                                          .errorCode = HardwareFailed::HardwareErrorCode::COMPLETE};
                 client->reportHardwareFailed(failed);
                 expect_message(android::util::HARDWARE_FAILED);
+                ++hal_calls;
+                break;
+            }
+            case 'p': {
+                PhysicalDropDetected drop{
+                    .confidencePctg = 75, .accelPeak = 250, .freefallDuration = 1234};
+                client->reportPhysicalDropDetected(drop);
+                expect_message(android::util::PHYSICAL_DROP_DETECTED);
                 ++hal_calls;
                 break;
             }
@@ -133,6 +148,16 @@ int main(int argc, char* argv[]) {
                                               .timeToInactive = 3};
                 client->reportUsbPortOverheatEvent(event);
                 expect_message(android::util::USB_PORT_OVERHEAT_EVENT_REPORTED);
+                ++hal_calls;
+                break;
+            }
+            case 'd': {
+                SpeechDspStat speech{.totalUptimeMillis = 1234,
+                                     .totalDowntimeMillis = 4321,
+                                     .totalCrashCount = 42,
+                                     .totalRecoverCount = 99};
+                client->reportSpeechDspStat(speech);
+                expect_message(android::util::SPEECH_DSP_STAT_REPORTED);
                 ++hal_calls;
                 break;
             }
