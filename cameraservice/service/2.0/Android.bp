@@ -16,10 +16,6 @@ hidl_interface {
         "android.frameworks.cameraservice.device@2.0",
         "android.hidl.base@1.0",
     ],
-    types: [
-        "CameraDeviceStatus",
-        "CameraStatusAndId",
-    ],
     gen_java: false,
 }
 

@@ -9,14 +9,6 @@ hidl_interface {
     srcs: [
         "types.hal",
     ],
-    types: [
-        "CameraMetadataType",
-        "ProviderIdAndVendorTagSections",
-        "Status",
-        "TagBoundaryId",
-        "VendorTag",
-        "VendorTagSection",
-    ],
     gen_java: true,
 }
 

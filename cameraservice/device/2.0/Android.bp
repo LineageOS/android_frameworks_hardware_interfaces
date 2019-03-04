@@ -15,19 +15,6 @@ hidl_interface {
         "android.frameworks.cameraservice.common@2.0",
         "android.hidl.base@1.0",
     ],
-    types: [
-        "CaptureRequest",
-        "CaptureResultExtras",
-        "ErrorCode",
-        "FmqSizeOrMetadata",
-        "OutputConfiguration",
-        "PhysicalCameraSettings",
-        "PhysicalCaptureResultInfo",
-        "StreamAndWindowId",
-        "StreamConfigurationMode",
-        "SubmitInfo",
-        "TemplateId",
-    ],
     gen_java: false,
 }
 
