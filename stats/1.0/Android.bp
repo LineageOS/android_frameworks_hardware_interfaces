@@ -13,18 +13,6 @@ hidl_interface {
     interfaces: [
         "android.hidl.base@1.0",
     ],
-    types: [
-        "BatteryCausedShutdown",
-        "BatteryHealthSnapshotArgs",
-        "ChargeCycles",
-        "HardwareFailed",
-        "PhysicalDropDetected",
-        "SlowIo",
-        "SpeakerImpedance",
-        "UsbPortOverheatEvent",
-        "SpeechDspStat",
-        "VendorAtom",
-    ],
     gen_java: true,
 }
 

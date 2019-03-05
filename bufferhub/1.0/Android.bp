@@ -17,9 +17,5 @@ hidl_interface {
         "android.hardware.graphics.common@1.2",
         "android.hidl.base@1.0",
     ],
-    types: [
-        "BufferHubStatus",
-        "BufferTraits",
-    ],
     gen_java: true,
 }
