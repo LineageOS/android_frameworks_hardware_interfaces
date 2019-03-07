@@ -3,19 +3,17 @@
 hidl_interface {
     name: "android.frameworks.bufferhub@1.0",
     root: "android.frameworks",
-    vndk: {
-        // Disallow direct vendor access as this interface should only be used by the Android
-        // platform. Vendors should use libnativewindow ll-ndk API to access BufferHub.
-        enabled: false,
-    },
     srcs: [
+        "types.hal",
         "IBufferClient.hal",
         "IBufferHub.hal",
-        "types.hal",
     ],
     interfaces: [
+        "android.hardware.graphics.common@1.0",
+        "android.hardware.graphics.common@1.1",
         "android.hardware.graphics.common@1.2",
         "android.hidl.base@1.0",
     ],
     gen_java: true,
 }
+
