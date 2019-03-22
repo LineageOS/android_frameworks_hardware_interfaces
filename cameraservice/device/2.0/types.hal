@@ -259,6 +259,13 @@ struct CaptureResultExtras {
      * Otherwise -1.
      */
     int32_t errorStreamId;
+
+    /**
+     * For capture result errors, the physical camera ID in case the respective request contains
+     * a reference to physical camera device.
+     * Empty otherwise.
+     */
+    string  errorPhysicalCameraId;
 };
 
 /**
