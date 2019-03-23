@@ -195,4 +195,17 @@ interface ICameraDeviceUser {
     updateOutputConfiguration(
             int32_t streamId, OutputConfiguration outputConfiguration)
          generates (Status status);
+
+    /**
+      * Check whether a particular session configuration has camera device
+      * support.
+      *
+      * @param sessionConfiguration Specific session configuration to be verified.
+      *
+      * @return status the status code of the operation
+      * @return true  - in case the stream combination is supported.
+      *         false - in case there is no device support.
+      */
+    isSessionConfigurationSupported(SessionConfiguration sessionConfiguration)
+        generates (Status status, bool supported);
 };

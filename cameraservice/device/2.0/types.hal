@@ -307,7 +307,7 @@ struct OutputConfiguration {
     /**
      * These must be handles to ANativeWindows owned by AImageReader,
      * obtained by using AImageReader_getWindowHandle. Ref:
-     * (frameworks/av/media/ndk/include/media/NdkImageReder.h).
+     * (frameworks/av/media/ndk/include/media/NdkImageReader.h).
      * When this vector has more than one window handle, native window surface
      * sharing is enabled. Clients may take advantage of this in advanced use
      * cases when they would require create more streams than the limits the
@@ -367,4 +367,38 @@ struct OutputConfiguration {
      * Ref:frameworks/base/core/java/android/hardware/camera2/params/OutputConfiguration.java
      */
     bool isDeferred;
+};
+
+struct SessionConfiguration {
+    /**
+     * A vector containing all output configurations
+     */
+    vec<OutputConfiguration> outputStreams;
+
+    /**
+     * Input stream width
+     *
+     * Note: this must be <= 0 if there is no input stream.
+     */
+    int32_t inputWidth;
+
+    /**
+     * Input stream height
+     *
+     * Note: this must be <= 0 if there is no input stream.
+     */
+    int32_t inputHeight;
+
+    /**
+     * Input stream format
+     *
+     * Note: this must be one of the AIMAGE_FORMATS defined in
+     * frameworks/av/media/ndk/include/media/NdkImage.h.
+     */
+    int32_t inputFormat;
+
+    /**
+     * Operation mode of camera device
+     */
+    StreamConfigurationMode operationMode;
 };
