@@ -17,6 +17,14 @@
 #define LOG_TAG "VtsHalCameraServiceV2_0TargetTest"
 //#define LOG_NDEBUG 0
 
+#include <android/frameworks/cameraservice/device/2.0/ICameraDeviceUser.h>
+#include <android/frameworks/cameraservice/service/2.0/ICameraService.h>
+
+#include <fmq/MessageQueue.h>
+#include <utils/Condition.h>
+#include <utils/Mutex.h>
+#include <utils/StrongPointer.h>
+
 #include <gtest/gtest.h>
 #include <stdint.h>
 #include <unistd.h>
@@ -27,765 +35,360 @@
 #include <string>
 #include <vector>
 
-#include <VendorTagDescriptor.h>
-#include <android/log.h>
-#include <camera/NdkCameraCaptureSession.h>
-#include <camera/NdkCameraDevice.h>
-#include <camera/NdkCameraError.h>
-#include <camera/NdkCameraManager.h>
-#include <cutils/native_handle.h>
-#include <media/NdkImage.h>
 #include <media/NdkImageReader.h>
 
-namespace {
+#include <android/log.h>
 
-using android::hardware::camera::common::V1_0::helper::VendorTagDescriptorCache;
+#include <VtsHalHidlTargetTestBase.h>
+#include <VtsHalHidlTargetTestEnvBase.h>
 
-static constexpr int kDummyFenceFd = -1;
-static constexpr int kCaptureWaitUs = 100 * 1000;
-static constexpr int kCaptureWaitRetry = 10;
-static constexpr int kTestImageWidth = 640;
-static constexpr int kTestImageHeight = 480;
-static constexpr int kTestImageFormat = AIMAGE_FORMAT_YUV_420_888;
+namespace android {
 
-class CameraHelper {
+using android::Condition;
+using android::Mutex;
+using android::sp;
+using android::frameworks::cameraservice::common::V2_0::Status;
+using android::frameworks::cameraservice::device::V2_0::CaptureRequest;
+using android::frameworks::cameraservice::device::V2_0::CaptureResultExtras;
+using android::frameworks::cameraservice::device::V2_0::ErrorCode;
+using android::frameworks::cameraservice::device::V2_0::FmqSizeOrMetadata;
+using android::frameworks::cameraservice::device::V2_0::ICameraDeviceCallback;
+using android::frameworks::cameraservice::device::V2_0::ICameraDeviceUser;
+using android::frameworks::cameraservice::device::V2_0::OutputConfiguration;
+using android::frameworks::cameraservice::device::V2_0::PhysicalCaptureResultInfo;
+using android::frameworks::cameraservice::device::V2_0::StreamConfigurationMode;
+using android::frameworks::cameraservice::device::V2_0::SubmitInfo;
+using android::frameworks::cameraservice::device::V2_0::TemplateId;
+using android::frameworks::cameraservice::service::V2_0::CameraDeviceStatus;
+using android::frameworks::cameraservice::service::V2_0::CameraStatusAndId;
+using android::frameworks::cameraservice::service::V2_0::ICameraService;
+using android::frameworks::cameraservice::service::V2_0::ICameraServiceListener;
+using android::hardware::hidl_string;
+using android::hardware::hidl_vec;
+using android::hardware::Return;
+using android::hardware::Void;
+using RequestMetadataQueue = hardware::MessageQueue<uint8_t, hardware::kSynchronizedReadWrite>;
+
+static constexpr int kCaptureRequestCount = 10;
+static constexpr int kImageWidth = 640;
+static constexpr int kImageHeight = 480;
+static constexpr int kImageFormat = AIMAGE_FORMAT_YUV_420_888;
+static constexpr int kNumRequests = 4;
+
+#define ASSERT_NOT_NULL(x) ASSERT_TRUE((x) != nullptr)
+
+#define SETUP_TIMEOUT 2000000000  // ns
+#define IDLE_TIMEOUT 2000000000   // ns
+
+// Stub listener implementation
+class CameraServiceListener : public ICameraServiceListener {
+    std::map<hidl_string, CameraDeviceStatus> mCameraStatuses;
+    mutable Mutex mLock;
+
    public:
-    CameraHelper(const char* id, ACameraManager* manager)
-        : mImgReaderAnw(nullptr), mCameraId(id), mCameraManager(manager) {}
-    ~CameraHelper() { closeCamera(); }
+    virtual ~CameraServiceListener(){};
 
-    struct PhysicalImgReaderInfo {
-        const char* physicalCameraId;
-        native_handle_t* anw;
-    };
-    int initCamera(native_handle_t* imgReaderAnw,
-                   const std::vector<PhysicalImgReaderInfo>& physicalImgReaders) {
-        if (imgReaderAnw == nullptr) {
-            ALOGE("Cannot initialize camera before image reader get initialized.");
-            return -1;
-        }
-        if (mIsCameraReady) {
-            ALOGE("initCamera should only be called once.");
-            return -1;
-        }
-
-        int ret;
-        mImgReaderAnw = imgReaderAnw;
-
-        ret = ACameraManager_openCamera(mCameraManager, mCameraId, &mDeviceCb, &mDevice);
-        if (ret != AMEDIA_OK || mDevice == nullptr) {
-            ALOGE("Failed to open camera, ret=%d, mDevice=%p.", ret, mDevice);
-            return -1;
-        }
-
-        // Create capture session
-        ret = ACaptureSessionOutputContainer_create(&mOutputs);
-        if (ret != AMEDIA_OK) {
-            ALOGE("ACaptureSessionOutputContainer_create failed, ret=%d", ret);
-            return ret;
-        }
-        ret = ACaptureSessionOutput_create(mImgReaderAnw, &mImgReaderOutput);
-        if (ret != AMEDIA_OK) {
-            ALOGE("ACaptureSessionOutput_create failed, ret=%d", ret);
-            return ret;
-        }
-        ret = ACaptureSessionOutputContainer_add(mOutputs, mImgReaderOutput);
-        if (ret != AMEDIA_OK) {
-            ALOGE("ACaptureSessionOutputContainer_add failed, ret=%d", ret);
-            return ret;
-        }
-
-        for (auto& physicalStream : physicalImgReaders) {
-            ACaptureSessionOutput* sessionOutput = nullptr;
-            ret = ACaptureSessionPhysicalOutput_create(
-                physicalStream.anw, physicalStream.physicalCameraId, &sessionOutput);
-            if (ret != ACAMERA_OK) {
-                ALOGE("ACaptureSessionPhysicalOutput_create failed, ret=%d", ret);
-                return ret;
-            }
-            ret = ACaptureSessionOutputContainer_add(mOutputs, sessionOutput);
-            if (ret != AMEDIA_OK) {
-                ALOGE("ACaptureSessionOutputContainer_add failed, ret=%d", ret);
-                return ret;
-            }
-            mExtraOutputs.push_back(sessionOutput);
-            // Assume that at most one physical stream per physical camera.
-            mPhysicalCameraIds.push_back(physicalStream.physicalCameraId);
-        }
-
-        ret = ACameraDevice_createCaptureSession(mDevice, mOutputs, &mSessionCb, &mSession);
-        if (ret != AMEDIA_OK) {
-            ALOGE("ACameraDevice_createCaptureSession failed, ret=%d", ret);
-            return ret;
-        }
-
-        // Create capture request
-        ret = ACameraDevice_createCaptureRequest(mDevice, TEMPLATE_STILL_CAPTURE, &mStillRequest);
-        if (ret != AMEDIA_OK) {
-            ALOGE("ACameraDevice_createCaptureRequest failed, ret=%d", ret);
-            return ret;
-        }
-        ret = ACameraOutputTarget_create(mImgReaderAnw, &mReqImgReaderOutput);
-        if (ret != AMEDIA_OK) {
-            ALOGE("ACameraOutputTarget_create failed, ret=%d", ret);
-            return ret;
-        }
-        ret = ACaptureRequest_addTarget(mStillRequest, mReqImgReaderOutput);
-        if (ret != AMEDIA_OK) {
-            ALOGE("ACaptureRequest_addTarget failed, ret=%d", ret);
-            return ret;
-        }
-
-        for (auto& physicalStream : physicalImgReaders) {
-            ACameraOutputTarget* outputTarget = nullptr;
-            ret = ACameraOutputTarget_create(physicalStream.anw, &outputTarget);
-            if (ret != AMEDIA_OK) {
-                ALOGE("ACameraOutputTarget_create failed, ret=%d", ret);
-                return ret;
-            }
-            ret = ACaptureRequest_addTarget(mStillRequest, outputTarget);
-            if (ret != AMEDIA_OK) {
-                ALOGE("ACaptureRequest_addTarget failed, ret=%d", ret);
-                return ret;
-            }
-            mReqExtraOutputs.push_back(outputTarget);
-        }
-
-        mIsCameraReady = true;
-        return 0;
-    }
-
-    bool isCameraReady() { return mIsCameraReady; }
-
-    void closeCamera() {
-        // Destroy capture request
-        if (mReqImgReaderOutput) {
-            ACameraOutputTarget_free(mReqImgReaderOutput);
-            mReqImgReaderOutput = nullptr;
-        }
-        for (auto& outputTarget : mReqExtraOutputs) {
-            ACameraOutputTarget_free(outputTarget);
-        }
-        mReqExtraOutputs.clear();
-        if (mStillRequest) {
-            ACaptureRequest_free(mStillRequest);
-            mStillRequest = nullptr;
-        }
-        // Destroy capture session
-        if (mSession != nullptr) {
-            ACameraCaptureSession_close(mSession);
-            mSession = nullptr;
-        }
-        if (mImgReaderOutput) {
-            ACaptureSessionOutput_free(mImgReaderOutput);
-            mImgReaderOutput = nullptr;
-        }
-        for (auto& extraOutput : mExtraOutputs) {
-            ACaptureSessionOutput_free(extraOutput);
-        }
-        mExtraOutputs.clear();
-        if (mOutputs) {
-            ACaptureSessionOutputContainer_free(mOutputs);
-            mOutputs = nullptr;
-        }
-        // Destroy camera device
-        if (mDevice) {
-            ACameraDevice_close(mDevice);
-            mDevice = nullptr;
-        }
-        mIsCameraReady = false;
-    }
-
-    int takePicture() {
-        int seqId;
-        return ACameraCaptureSession_capture(mSession, &mCaptureCallbacks, 1, &mStillRequest,
-                                             &seqId);
-    }
-
-    int takeLogicalCameraPicture() {
-        int seqId;
-        return ACameraCaptureSession_logicalCamera_capture(mSession, &mLogicalCaptureCallbacks, 1,
-                                                           &mStillRequest, &seqId);
-    }
-
-    bool checkCallbacks(int pictureCount) {
-        std::lock_guard<std::mutex> lock(mMutex);
-        if (mCompletedCaptureCallbackCount != pictureCount) {
-            ALOGE("Completed capture callaback count not as expected. expected %d actual %d",
-                  pictureCount, mCompletedCaptureCallbackCount);
-            return false;
-        }
-        return true;
-    }
-
-    static void onDeviceDisconnected(void* /*obj*/, ACameraDevice* /*device*/) {}
-
-    static void onDeviceError(void* /*obj*/, ACameraDevice* /*device*/, int /*errorCode*/) {}
-
-    static void onSessionClosed(void* /*obj*/, ACameraCaptureSession* /*session*/) {}
-
-    static void onSessionReady(void* /*obj*/, ACameraCaptureSession* /*session*/) {}
-
-    static void onSessionActive(void* /*obj*/, ACameraCaptureSession* /*session*/) {}
-
-   private:
-    ACameraDevice_StateCallbacks mDeviceCb{this, onDeviceDisconnected, onDeviceError};
-    ACameraCaptureSession_stateCallbacks mSessionCb{this, onSessionClosed, onSessionReady,
-                                                    onSessionActive};
-
-    native_handle_t* mImgReaderAnw = nullptr;  // not owned by us.
-
-    // Camera device
-    ACameraDevice* mDevice = nullptr;
-    // Capture session
-    ACaptureSessionOutputContainer* mOutputs = nullptr;
-    ACaptureSessionOutput* mImgReaderOutput = nullptr;
-    std::vector<ACaptureSessionOutput*> mExtraOutputs;
-
-    ACameraCaptureSession* mSession = nullptr;
-    // Capture request
-    ACaptureRequest* mStillRequest = nullptr;
-    ACameraOutputTarget* mReqImgReaderOutput = nullptr;
-    std::vector<ACameraOutputTarget*> mReqExtraOutputs;
-
-    bool mIsCameraReady = false;
-    const char* mCameraId;
-    ACameraManager* mCameraManager;
-    int mCompletedCaptureCallbackCount = 0;
-    std::mutex mMutex;
-    ACameraCaptureSession_captureCallbacks mCaptureCallbacks = {
-        // TODO: Add tests for other callbacks
-        this,     // context
-        nullptr,  // onCaptureStarted
-        nullptr,  // onCaptureProgressed
-        [](void* ctx, ACameraCaptureSession*, ACaptureRequest*, const ACameraMetadata*) {
-            CameraHelper* ch = static_cast<CameraHelper*>(ctx);
-            std::lock_guard<std::mutex> lock(ch->mMutex);
-            ch->mCompletedCaptureCallbackCount++;
-        },
-        nullptr,  // onCaptureFailed
-        nullptr,  // onCaptureSequenceCompleted
-        nullptr,  // onCaptureSequenceAborted
-        nullptr,  // onCaptureBufferLost
-    };
-
-    std::vector<std::string> mPhysicalCameraIds;
-    ACameraCaptureSession_logicalCamera_captureCallbacks mLogicalCaptureCallbacks = {
-        // TODO: Add tests for other callbacks
-        this,     // context
-        nullptr,  // onCaptureStarted
-        nullptr,  // onCaptureProgressed
-        [](void* ctx, ACameraCaptureSession*, ACaptureRequest*, const ACameraMetadata*,
-           size_t physicalResultCount, const char** physicalCameraIds,
-           const ACameraMetadata** physicalResults) {
-            CameraHelper* ch = static_cast<CameraHelper*>(ctx);
-            std::lock_guard<std::mutex> lock(ch->mMutex);
-            ASSERT_EQ(physicalResultCount, ch->mPhysicalCameraIds.size());
-            for (size_t i = 0; i < physicalResultCount; i++) {
-                ASSERT_TRUE(physicalCameraIds[i] != nullptr);
-                ASSERT_TRUE(physicalResults[i] != nullptr);
-                ASSERT_NE(std::find(ch->mPhysicalCameraIds.begin(), ch->mPhysicalCameraIds.end(),
-                                    physicalCameraIds[i]),
-                          ch->mPhysicalCameraIds.end());
-
-                // Verify frameNumber and sensorTimestamp exist in physical
-                // result metadata
-                ACameraMetadata_const_entry entry;
-                ACameraMetadata_getConstEntry(physicalResults[i], ACAMERA_SYNC_FRAME_NUMBER,
-                                              &entry);
-                ASSERT_EQ(entry.count, 1);
-                ACameraMetadata_getConstEntry(physicalResults[i], ACAMERA_SENSOR_TIMESTAMP, &entry);
-                ASSERT_EQ(entry.count, 1);
-            }
-            ch->mCompletedCaptureCallbackCount++;
-        },
-        nullptr,  // onCaptureFailed
-        nullptr,  // onCaptureSequenceCompleted
-        nullptr,  // onCaptureSequenceAborted
-        nullptr,  // onCaptureBufferLost
+    virtual Return<void> onStatusChanged(const CameraStatusAndId& statusAndId) override {
+        Mutex::Autolock l(mLock);
+        mCameraStatuses[statusAndId.cameraId] = statusAndId.deviceStatus;
+        return Void();
     };
 };
 
-class ImageReaderTestCase {
+// ICameraDeviceCallback implementation
+class CameraDeviceCallbacks : public ICameraDeviceCallback {
    public:
-    ImageReaderTestCase(int32_t width, int32_t height, int32_t format, uint64_t usage,
-                        int32_t maxImages, bool async)
-        : mWidth(width),
-          mHeight(height),
-          mFormat(format),
-          mUsage(usage),
-          mMaxImages(maxImages),
-          mAsync(async) {}
+    enum Status {
+        IDLE,
+        ERROR,
+        PREPARED,
+        RUNNING,
+        RESULT_RECEIVED,
+        UNINITIALIZED,
+        REPEATING_REQUEST_ERROR,
+    };
 
-    ~ImageReaderTestCase() {
-        if (mImgReaderAnw) {
-            AImageReader_delete(mImgReader);
-            // No need to call native_handle_t_release on imageReaderAnw
-        }
+   protected:
+    bool mError = false;
+    Status mLastStatus = UNINITIALIZED;
+    mutable std::vector<Status> mStatusesHit;
+    mutable Mutex mLock;
+    mutable Condition mStatusCondition;
+
+   public:
+    CameraDeviceCallbacks() {}
+
+    virtual ~CameraDeviceCallbacks() {}
+
+    virtual Return<void> onDeviceError(ErrorCode errorCode,
+                                       const CaptureResultExtras& resultExtras) override {
+        (void)resultExtras;
+        ALOGE("%s: onDeviceError occurred with: %d", __FUNCTION__, static_cast<int>(errorCode));
+        Mutex::Autolock l(mLock);
+        mError = true;
+        mLastStatus = ERROR;
+        mStatusesHit.push_back(mLastStatus);
+        mStatusCondition.broadcast();
+        return Void();
     }
 
-    int initImageReader() {
-        if (mImgReader != nullptr || mImgReaderAnw != nullptr) {
-            ALOGE("Cannot re-initalize image reader, mImgReader=%p, mImgReaderAnw=%p", mImgReader,
-                  mImgReaderAnw);
-            return -1;
-        }
-
-        media_status_t ret =
-            AImageReader_newWithUsage(mWidth, mHeight, mFormat, mUsage, mMaxImages, &mImgReader);
-        if (ret != AMEDIA_OK || mImgReader == nullptr) {
-            ALOGE("Failed to create new AImageReader, ret=%d, mImgReader=%p", ret, mImgReader);
-            return -1;
-        }
-
-        ret = AImageReader_setImageListener(mImgReader, &mReaderAvailableCb);
-        if (ret != AMEDIA_OK) {
-            ALOGE("Failed to set image available listener, ret=%d.", ret);
-            return ret;
-        }
-
-        ret = AImageReader_setBufferRemovedListener(mImgReader, &mReaderDetachedCb);
-        if (ret != AMEDIA_OK) {
-            ALOGE("Failed to set buffer detaching listener, ret=%d.", ret);
-            return ret;
-        }
-
-        ret = AImageReader_getWindowNativeHandle(mImgReader, &mImgReaderAnw);
-        if (ret != AMEDIA_OK || mImgReaderAnw == nullptr) {
-            ALOGE("Failed to get native_handle_t from AImageReader, ret=%d, mImgReaderAnw=%p.", ret,
-                  mImgReaderAnw);
-            return -1;
-        }
-
-        return 0;
+    virtual Return<void> onDeviceIdle() override {
+        Mutex::Autolock l(mLock);
+        mLastStatus = IDLE;
+        mStatusesHit.push_back(mLastStatus);
+        mStatusCondition.broadcast();
+        return Void();
     }
 
-    native_handle_t* getNativeWindow() { return mImgReaderAnw; }
-
-    int getAcquiredImageCount() {
-        std::lock_guard<std::mutex> lock(mMutex);
-        return mAcquiredImageCount;
+    virtual Return<void> onCaptureStarted(const CaptureResultExtras& resultExtras,
+                                          uint64_t timestamp) override {
+        (void)resultExtras;
+        (void)timestamp;
+        Mutex::Autolock l(mLock);
+        mLastStatus = RUNNING;
+        mStatusesHit.push_back(mLastStatus);
+        mStatusCondition.broadcast();
+        return Void();
     }
 
-    void HandleImageAvailable(AImageReader* reader) {
-        std::lock_guard<std::mutex> lock(mMutex);
-
-        AImage* outImage = nullptr;
-        media_status_t ret;
-
-        // Make sure AImage will be deleted automatically when it goes out of
-        // scope.
-        auto imageDeleter = [this](AImage* img) {
-            if (mAsync) {
-                AImage_deleteAsync(img, kDummyFenceFd);
-            } else {
-                AImage_delete(img);
-            }
-        };
-        std::unique_ptr<AImage, decltype(imageDeleter)> img(nullptr, imageDeleter);
-
-        if (mAsync) {
-            int outFenceFd = 0;
-            // Verity that outFenceFd's value will be changed by
-            // AImageReader_acquireNextImageAsync.
-            ret = AImageReader_acquireNextImageAsync(reader, &outImage, &outFenceFd);
-            if (ret != AMEDIA_OK || outImage == nullptr || outFenceFd == 0) {
-                ALOGE("Failed to acquire image, ret=%d, outIamge=%p, outFenceFd=%d.", ret, outImage,
-                      outFenceFd);
-                return;
-            }
-            img.reset(outImage);
-        } else {
-            ret = AImageReader_acquireNextImage(reader, &outImage);
-            if (ret != AMEDIA_OK || outImage == nullptr) {
-                ALOGE("Failed to acquire image, ret=%d, outIamge=%p.", ret, outImage);
-                return;
-            }
-            img.reset(outImage);
-        }
-
-        AHardwareBuffer* outBuffer = nullptr;
-        ret = AImage_getHardwareBuffer(img.get(), &outBuffer);
-        if (ret != AMEDIA_OK || outBuffer == nullptr) {
-            ALOGE("Faild to get hardware buffer, ret=%d, outBuffer=%p.", ret, outBuffer);
-            return;
-        }
-
-        // No need to release AHardwareBuffer, since we don't acquire additional
-        // reference to it.
-        AHardwareBuffer_Desc outDesc;
-        AHardwareBuffer_describe(outBuffer, &outDesc);
-        int32_t imageWidth = 0;
-        int32_t imageHeight = 0;
-        int32_t bufferWidth = static_cast<int32_t>(outDesc.width);
-        int32_t bufferHeight = static_cast<int32_t>(outDesc.height);
-
-        AImage_getWidth(outImage, &imageWidth);
-        AImage_getHeight(outImage, &imageHeight);
-        if (imageWidth != mWidth || imageHeight != mHeight) {
-            ALOGE("Mismatched output image dimension: expected=%dx%d, actual=%dx%d", mWidth,
-                  mHeight, imageWidth, imageHeight);
-            return;
-        }
-
-        if (mFormat == AIMAGE_FORMAT_RGBA_8888 || mFormat == AIMAGE_FORMAT_RGBX_8888 ||
-            mFormat == AIMAGE_FORMAT_RGB_888 || mFormat == AIMAGE_FORMAT_RGB_565 ||
-            mFormat == AIMAGE_FORMAT_RGBA_FP16 || mFormat == AIMAGE_FORMAT_YUV_420_888 ||
-            mFormat == AIMAGE_FORMAT_Y8) {
-            // Check output buffer dimension for certain formats. Don't do this for blob based
-            // formats.
-            if (bufferWidth != mWidth || bufferHeight != mHeight) {
-                ALOGE("Mismatched output buffer dimension: expected=%dx%d, actual=%dx%d", mWidth,
-                      mHeight, bufferWidth, bufferHeight);
-                return;
-            }
-        }
-
-        if ((outDesc.usage & mUsage) != mUsage) {
-            ALOGE("Mismatched output buffer usage: actual (%" PRIu64 "), expected (%" PRIu64 ")",
-                  outDesc.usage, mUsage);
-            return;
-        }
-
-        uint8_t* data = nullptr;
-        int dataLength = 0;
-        ret = AImage_getPlaneData(img.get(), 0, &data, &dataLength);
-        if (mUsage & AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN) {
-            // When we have CPU_READ_OFTEN usage bits, we can lock the image.
-            if (ret != AMEDIA_OK || data == nullptr || dataLength < 0) {
-                ALOGE("Failed to access CPU data, ret=%d, data=%p, dataLength=%d", ret, data,
-                      dataLength);
-                return;
-            }
-        } else {
-            if (ret != AMEDIA_IMGREADER_CANNOT_LOCK_IMAGE || data != nullptr || dataLength != 0) {
-                ALOGE("Shouldn't be able to access CPU data, ret=%d, data=%p, dataLength=%d", ret,
-                      data, dataLength);
-                return;
-            }
-        }
-        // Only increase mAcquiredImageCount if all checks pass.
-        mAcquiredImageCount++;
+    virtual Return<void> onResultReceived(
+        const FmqSizeOrMetadata& sizeOrMetadata, const CaptureResultExtras& resultExtras,
+        const hidl_vec<PhysicalCaptureResultInfo>& physicalResultInfos) override {
+        (void)sizeOrMetadata;
+        (void)resultExtras;
+        (void)physicalResultInfos;
+        Mutex::Autolock l(mLock);
+        mLastStatus = RESULT_RECEIVED;
+        mStatusesHit.push_back(mLastStatus);
+        mStatusCondition.broadcast();
+        return Void();
     }
 
-    static void onImageAvailable(void* obj, AImageReader* reader) {
-        ImageReaderTestCase* thiz = reinterpret_cast<ImageReaderTestCase*>(obj);
-        thiz->HandleImageAvailable(reader);
+    virtual Return<void> onRepeatingRequestError(uint64_t lastFrameNumber,
+                                                 int32_t stoppedSequenceId) override {
+        (void)lastFrameNumber;
+        (void)stoppedSequenceId;
+        Mutex::Autolock l(mLock);
+        mLastStatus = REPEATING_REQUEST_ERROR;
+        mStatusesHit.push_back(mLastStatus);
+        mStatusCondition.broadcast();
+        return Void();
     }
 
-    static void onBufferRemoved(void* /*obj*/, AImageReader* /*reader*/,
-                                AHardwareBuffer* /*buffer*/) {
-        // No-op, just to check the listener can be set properly.
+    // Test helper functions:
+
+    bool hadError() const {
+        Mutex::Autolock l(mLock);
+        return mError;
+    }
+    bool waitForStatus(Status status) const {
+        Mutex::Autolock l(mLock);
+        if (mLastStatus == status) {
+            return true;
+        }
+
+        while (std::find(mStatusesHit.begin(), mStatusesHit.end(), status) == mStatusesHit.end()) {
+            if (mStatusCondition.waitRelative(mLock, IDLE_TIMEOUT) != android::OK) {
+                mStatusesHit.clear();
+                return false;
+            }
+        }
+        mStatusesHit.clear();
+
+        return true;
     }
 
-   private:
-    int32_t mWidth;
-    int32_t mHeight;
-    int32_t mFormat;
-    uint64_t mUsage;
-    int32_t mMaxImages;
-    bool mAsync;
+    void clearStatus() const {
+        Mutex::Autolock l(mLock);
+        mStatusesHit.clear();
+    }
 
-    std::mutex mMutex;
-    int mAcquiredImageCount{0};
+    bool waitForIdle() const { return waitForStatus(IDLE); }
+};
 
-    AImageReader* mImgReader = nullptr;
-    native_handle_t* mImgReaderAnw = nullptr;
+class CameraHidlEnvironment : public ::testing::VtsHalHidlTargetTestEnvBase {
+   public:
+    // get the test environment singleton
+    static CameraHidlEnvironment* Instance() {
+        static CameraHidlEnvironment* instance = new CameraHidlEnvironment();
+        return instance;
+    }
 
-    AImageReader_ImageListener mReaderAvailableCb{this, onImageAvailable};
-    AImageReader_BufferRemovedListener mReaderDetachedCb{this, onBufferRemoved};
+    virtual void registerTestServices() override { registerTestService<ICameraService>(); }
 };
 
 class VtsHalCameraServiceV2_0TargetTest : public ::testing::Test {
    public:
     void SetUp() override {
-        mCameraManager = ACameraManager_create();
-        if (mCameraManager == nullptr) {
-            ALOGE("Failed to create ACameraManager.");
-            return;
-        }
-
-        camera_status_t ret = ACameraManager_getCameraIdList(mCameraManager, &mCameraIdList);
-        if (ret != ACAMERA_OK) {
-            ALOGE("Failed to get cameraIdList: ret=%d", ret);
-            return;
-        }
-        if (mCameraIdList->numCameras < 1) {
-            ALOGW("Device has no camera on board.");
-            return;
-        }
-
-        // TODO: Add more rigorous tests for vendor tags
-        ASSERT_NE(VendorTagDescriptorCache::getGlobalVendorTagCache(), nullptr);
-        mNoCameras = false;
+        cs = ::testing::VtsHalHidlTargetTestBase::getService<ICameraService>(
+            CameraHidlEnvironment::Instance()->getServiceName<ICameraService>());
     }
-    void TearDown() override {
-        // Destroy camera manager
-        if (mCameraIdList) {
-            ACameraManager_deleteCameraIdList(mCameraIdList);
-            mCameraIdList = nullptr;
+    void TearDown() override {}
+    // creates an outputConfiguration with no deferred streams
+    OutputConfiguration createOutputConfiguration(const std::vector<native_handle_t*>& nhs) {
+        OutputConfiguration output;
+        output.rotation = OutputConfiguration::Rotation::R0;
+        output.windowGroupId = -1;
+        output.windowHandles.resize(nhs.size());
+        output.width = 0;
+        output.height = 0;
+        output.isDeferred = false;
+        for (size_t i = 0; i < nhs.size(); i++) {
+            output.windowHandles[i] = nhs[i];
         }
-        if (mCameraManager) {
-            ACameraManager_delete(mCameraManager);
-            mCameraManager = nullptr;
-        }
+        return output;
     }
 
-    bool takePictures(const char* id, uint64_t readerUsage, int readerMaxImages, bool readerAsync,
-                      int pictureCount) {
-        int ret = 0;
-
-        ImageReaderTestCase testCase(kTestImageWidth, kTestImageHeight, kTestImageFormat,
-                                     readerUsage, readerMaxImages, readerAsync);
-        ret = testCase.initImageReader();
-        if (ret < 0) {
-            ALOGE("Unable to initialize ImageReader");
-            return false;
-        }
-
-        CameraHelper cameraHelper(id, mCameraManager);
-        ret = cameraHelper.initCamera(testCase.getNativeWindow(), {});
-        if (ret < 0) {
-            ALOGE("Unable to initialize camera helper");
-            return false;
-        }
-
-        if (!cameraHelper.isCameraReady()) {
-            ALOGW(
-                "Camera is not ready after successful initialization. It's either due to camera "
-                "on board lacks BACKWARDS_COMPATIBLE capability or the device does not have "
-                "camera on board.");
-            return true;
-        }
-
-        for (int i = 0; i < pictureCount; i++) {
-            ret = cameraHelper.takePicture();
-            if (ret < 0) {
-                ALOGE("Unable to take picture");
-                return false;
-            }
-        }
-
-        // Sleep until all capture finished
-        for (int i = 0; i < kCaptureWaitRetry * pictureCount; i++) {
-            usleep(kCaptureWaitUs);
-            if (testCase.getAcquiredImageCount() == pictureCount) {
-                ALOGI("Session take ~%d ms to capture %d images", i * kCaptureWaitUs / 1000,
-                      pictureCount);
-                break;
-            }
-        }
-        return testCase.getAcquiredImageCount() == pictureCount &&
-               cameraHelper.checkCallbacks(pictureCount);
+    void initializeCaptureRequestPartial(CaptureRequest* captureRequest, int32_t streamId,
+                                         const hidl_string& cameraId, size_t settingsSize) {
+        captureRequest->physicalCameraSettings.resize(1);
+        captureRequest->physicalCameraSettings[0].id = cameraId;
+        captureRequest->streamAndWindowIds.resize(1);
+        captureRequest->streamAndWindowIds[0].streamId = streamId;
+        captureRequest->streamAndWindowIds[0].windowId = 0;
+        // Write the settings metadata into the fmq.
+        captureRequest->physicalCameraSettings[0].settings.fmqMetadataSize(settingsSize);
     }
 
-    bool testTakePicturesNative(const char* id) {
-        for (auto& readerUsage : {AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN}) {
-            for (auto& readerMaxImages : {1, 4, 8}) {
-                for (auto& readerAsync : {true, false}) {
-                    for (auto& pictureCount : {1, 4, 8}) {
-                        if (!takePictures(id, readerUsage, readerMaxImages, readerAsync,
-                                          pictureCount)) {
-                            ALOGE("Test takePictures failed for test case usage=%" PRIu64
-                                  ", maxImages=%d, async=%d, pictureCount=%d",
-                                  readerUsage, readerMaxImages, readerAsync, pictureCount);
-                            return false;
-                        }
-                    }
-                }
-            }
-        }
-        return true;
-    }
-
-    // Camera manager
-    ACameraManager* mCameraManager = nullptr;
-    ACameraIdList* mCameraIdList = nullptr;
-    bool mNoCameras = true;
-
-    bool isCapabilitySupported(ACameraMetadata* staticInfo,
-                               acamera_metadata_enum_android_request_available_capabilities_t cap) {
-        ACameraMetadata_const_entry entry;
-        ACameraMetadata_getConstEntry(staticInfo, ACAMERA_REQUEST_AVAILABLE_CAPABILITIES, &entry);
-        for (uint32_t i = 0; i < entry.count; i++) {
-            if (entry.data.u8[i] == cap) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool isSizeSupportedForFormat(ACameraMetadata* staticInfo, int32_t format, int32_t width,
-                                  int32_t height) {
-        ACameraMetadata_const_entry entry;
-        ACameraMetadata_getConstEntry(staticInfo, ACAMERA_SCALER_AVAILABLE_STREAM_CONFIGURATIONS,
-                                      &entry);
-        for (uint32_t i = 0; i < entry.count; i += 4) {
-            if (entry.data.i32[i] == format &&
-                entry.data.i32[i + 3] == ACAMERA_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT &&
-                entry.data.i32[i + 1] == width && entry.data.i32[i + 2] == height) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    void findCandidateLogicalCamera(const char** cameraId, ACameraMetadata** staticMetadata,
-                                    std::vector<const char*>* candidatePhysicalIds) {
-        // Find first available logical camera
-        for (int i = 0; i < mCameraIdList->numCameras; i++) {
-            camera_status_t ret;
-            ret = ACameraManager_getCameraCharacteristics(
-                mCameraManager, mCameraIdList->cameraIds[i], staticMetadata);
-            ASSERT_EQ(ret, ACAMERA_OK);
-            ASSERT_NE(*staticMetadata, nullptr);
-
-            if (!isCapabilitySupported(
-                    *staticMetadata, ACAMERA_REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA)) {
-                ACameraMetadata_free(*staticMetadata);
-                *staticMetadata = nullptr;
-                continue;
-            }
-
-            // Check returned physical camera Ids are valid
-            size_t physicalCameraIdCnt = 0;
-            const char* const* physicalCameraIds = nullptr;
-            bool isLogicalCamera = ACameraMetadata_isLogicalMultiCamera(
-                *staticMetadata, &physicalCameraIdCnt, &physicalCameraIds);
-            ASSERT_TRUE(isLogicalCamera);
-            ASSERT_GE(physicalCameraIdCnt, 2);
-            ACameraMetadata* physicalCameraMetadata = nullptr;
-            candidatePhysicalIds->clear();
-            for (size_t j = 0; j < physicalCameraIdCnt && candidatePhysicalIds->size() < 2; j++) {
-                ASSERT_GT(strlen(physicalCameraIds[j]), 0);
-                ret = ACameraManager_getCameraCharacteristics(mCameraManager, physicalCameraIds[j],
-                                                              &physicalCameraMetadata);
-                ASSERT_EQ(ret, ACAMERA_OK);
-                ASSERT_NE(physicalCameraMetadata, nullptr);
-
-                if (isSizeSupportedForFormat(physicalCameraMetadata, kTestImageFormat,
-                                             kTestImageWidth, kTestImageHeight)) {
-                    candidatePhysicalIds->push_back(physicalCameraIds[j]);
-                }
-                ACameraMetadata_free(physicalCameraMetadata);
-            }
-            if (candidatePhysicalIds->size() == 2) {
-                *cameraId = mCameraIdList->cameraIds[i];
-                return;
-            } else {
-                ACameraMetadata_free(*staticMetadata);
-                *staticMetadata = nullptr;
-            }
-        }
-        *cameraId = nullptr;
-        return;
-    }
+    sp<ICameraService> cs = nullptr;
 };
 
-TEST_F(VtsHalCameraServiceV2_0TargetTest, CaptureImages) {
-    if (mNoCameras) {
-        // No camera on device
-        return;
-    }
-
-    const char* cameraId = nullptr;
-
-    for (int i = 0; i < mCameraIdList->numCameras; i++) {
-        cameraId = mCameraIdList->cameraIds[i];
-        ASSERT_TRUE(cameraId != nullptr);
-
-        ACameraMetadata* staticMetadata = nullptr;
-        camera_status_t ret =
-            ACameraManager_getCameraCharacteristics(mCameraManager, cameraId, &staticMetadata);
-        ASSERT_EQ(ret, ACAMERA_OK);
-        ASSERT_NE(staticMetadata, nullptr);
-
-        bool isBC = isCapabilitySupported(
-            staticMetadata, ACAMERA_REQUEST_AVAILABLE_CAPABILITIES_BACKWARD_COMPATIBLE);
-
-        ACameraMetadata_free(staticMetadata);
-
-        if (!isBC) {
-            ALOGI("Camera id %s does not support BACKWARD_COMPATIBLE.", cameraId);
+// Basic HIDL calls for ICameraService
+TEST_F(VtsHalCameraServiceV2_0TargetTest, BasicCameraLifeCycleTest) {
+    sp<CameraServiceListener> listener(new CameraServiceListener());
+    hidl_vec<CameraStatusAndId> cameraStatuses{};
+    Status status = Status::NO_ERROR;
+    auto remoteRet =
+        cs->addListener(listener, [&status, &cameraStatuses](Status s, auto& retStatuses) {
+            status = s;
+            cameraStatuses = retStatuses;
+        });
+    EXPECT_TRUE(remoteRet.isOk() && status == Status::NO_ERROR);
+    for (const auto& it : cameraStatuses) {
+        hidl_vec<uint8_t> rawMetadata;
+        listener->onStatusChanged(it);
+        if (it.deviceStatus != CameraDeviceStatus::STATUS_PRESENT) {
             continue;
         }
-    }
+        remoteRet = cs->getCameraCharacteristics(
+            it.cameraId, [&status, &rawMetadata](auto s, const hidl_vec<uint8_t>& metadata) {
+                status = s;
+                rawMetadata = metadata;
+            });
+        EXPECT_TRUE(remoteRet.isOk() && status == Status::NO_ERROR);
+        EXPECT_TRUE(rawMetadata.size() != 0);
+        sp<CameraDeviceCallbacks> callbacks(new CameraDeviceCallbacks());
+        sp<ICameraDeviceUser> deviceRemote = nullptr;
+        remoteRet = cs->connectDevice(callbacks, it.cameraId,
+                                      [&status, &deviceRemote](auto s, auto& device) {
+                                          status = s;
+                                          deviceRemote = device;
+                                      });
+        EXPECT_TRUE(remoteRet.isOk() && status == Status::NO_ERROR);
+        EXPECT_TRUE(deviceRemote != nullptr);
 
-    if (!cameraId) {
-        // No backwards compatible camera was found
-        ALOGI("No camera BACKWARD_COMPATIBLE device found, skipping test CaptureImages");
-        return;
-    }
-
-    EXPECT_TRUE(testTakePicturesNative(cameraId));
-}
-
-TEST_F(VtsHalCameraServiceV2_0TargetTest, LogicalCameraPhysicalStream) {
-    if (mNoCameras) {
-        // No camera on device
-        return;
-    }
-
-    const char* cameraId = nullptr;
-    ACameraMetadata* staticMetadata = nullptr;
-    std::vector<const char*> physicalCameraIds;
-
-    findCandidateLogicalCamera(&cameraId, &staticMetadata, &physicalCameraIds);
-    if (cameraId == nullptr) {
-        // Couldn't find logical camera to test
-        return;
-    }
-
-    // Test streaming the logical multi-camera
-    uint64_t readerUsage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN;
-    int32_t readerMaxImages = 8;
-    bool readerAsync = false;
-    const int pictureCount = 6;
-    std::vector<ImageReaderTestCase*> testCases;
-    for (size_t i = 0; i < 3; i++) {
-        ImageReaderTestCase* testCase =
-            new ImageReaderTestCase(kTestImageWidth, kTestImageHeight, kTestImageFormat,
-                                    readerUsage, readerMaxImages, readerAsync);
-        ASSERT_EQ(testCase->initImageReader(), 0);
-        testCases.push_back(testCase);
-    }
-
-    CameraHelper cameraHelper(cameraId, mCameraManager);
-    std::vector<CameraHelper::PhysicalImgReaderInfo> physicalImgReaderInfo;
-    physicalImgReaderInfo.push_back({physicalCameraIds[0], testCases[1]->getNativeWindow()});
-    physicalImgReaderInfo.push_back({physicalCameraIds[1], testCases[2]->getNativeWindow()});
-
-    int ret = cameraHelper.initCamera(testCases[0]->getNativeWindow(), physicalImgReaderInfo);
-    ASSERT_EQ(ret, 0);
-
-    if (!cameraHelper.isCameraReady()) {
-        ALOGW(
-            "Camera is not ready after successful initialization. It's either due to camera on "
-            "board lacks BACKWARDS_COMPATIBLE capability or the device does not have camera on "
-            "board.");
-        return;
-    }
-
-    for (int i = 0; i < pictureCount; i++) {
-        ret = cameraHelper.takeLogicalCameraPicture();
-        ASSERT_EQ(ret, 0);
-    }
-
-    // Sleep until all capture finished
-    for (int i = 0; i < kCaptureWaitRetry * pictureCount; i++) {
-        usleep(kCaptureWaitUs);
-        if (testCases[0]->getAcquiredImageCount() == pictureCount) {
-            ALOGI("Session take ~%d ms to capture %d images", i * kCaptureWaitUs / 1000,
-                  pictureCount);
-            break;
+        std::shared_ptr<RequestMetadataQueue> requestMQ = nullptr;
+        remoteRet = deviceRemote->getCaptureRequestMetadataQueue([&requestMQ](const auto& mqD) {
+            requestMQ = std::make_shared<RequestMetadataQueue>(mqD);
+            EXPECT_TRUE(requestMQ->isValid() && (requestMQ->availableToWrite() >= 0));
+        });
+        EXPECT_TRUE(remoteRet.isOk());
+        AImageReader* reader = nullptr;
+        auto mStatus = AImageReader_new(kImageWidth, kImageHeight, kImageFormat,
+                                        kCaptureRequestCount, &reader);
+        EXPECT_EQ(mStatus, AMEDIA_OK);
+        native_handle_t* wh = nullptr;
+        mStatus = AImageReader_getWindowNativeHandle(reader, &wh);
+        EXPECT_TRUE(mStatus == AMEDIA_OK && wh != nullptr);
+        OutputConfiguration output = createOutputConfiguration({wh});
+        Return<Status> ret = deviceRemote->beginConfigure();
+        EXPECT_TRUE(ret.isOk() && ret == Status::NO_ERROR);
+        int32_t streamId = -1;
+        remoteRet = deviceRemote->createStream(output, [&status, &streamId](Status s, auto sId) {
+            status = s;
+            streamId = sId;
+        });
+        EXPECT_TRUE(remoteRet.isOk() && status == Status::NO_ERROR);
+        EXPECT_TRUE(streamId >= 0);
+        hidl_vec<uint8_t> hidlParams;
+        ret = deviceRemote->endConfigure(StreamConfigurationMode::NORMAL_MODE, hidlParams);
+        EXPECT_TRUE(ret.isOk() && ret == Status::NO_ERROR);
+        hidl_vec<uint8_t> settingsMetadata;
+        remoteRet = deviceRemote->createDefaultRequest(
+            TemplateId::PREVIEW, [&status, &settingsMetadata](auto s, const hidl_vec<uint8_t> m) {
+                status = s;
+                settingsMetadata = m;
+            });
+        EXPECT_TRUE(remoteRet.isOk() && status == Status::NO_ERROR);
+        EXPECT_GE(settingsMetadata.size(), 0);
+        hidl_vec<CaptureRequest> captureRequests;
+        captureRequests.resize(kNumRequests);
+        for (int i = 0; i < kNumRequests; i++) {
+            CaptureRequest& captureRequest = captureRequests[i];
+            initializeCaptureRequestPartial(&captureRequest, streamId, it.cameraId,
+                                            settingsMetadata.size());
+            // Write the settings metadata into the fmq.
+            bool written = requestMQ->write(settingsMetadata.data(), settingsMetadata.size());
+            EXPECT_TRUE(written);
         }
-    }
-    ASSERT_EQ(testCases[0]->getAcquiredImageCount(), pictureCount);
-    ASSERT_EQ(testCases[1]->getAcquiredImageCount(), pictureCount);
-    ASSERT_EQ(testCases[2]->getAcquiredImageCount(), pictureCount);
-    ASSERT_TRUE(cameraHelper.checkCallbacks(pictureCount));
+        SubmitInfo info;
 
-    ACameraMetadata_free(staticMetadata);
+        // Test a single capture
+        remoteRet = deviceRemote->submitRequestList(captureRequests, false,
+                                                    [&status, &info](auto s, auto& submitInfo) {
+                                                        status = s;
+                                                        info = submitInfo;
+                                                    });
+        EXPECT_TRUE(remoteRet.isOk() && status == Status::NO_ERROR);
+        EXPECT_GE(info.requestId, 0);
+        EXPECT_TRUE(callbacks->waitForStatus(CameraDeviceCallbacks::Status::RESULT_RECEIVED));
+        EXPECT_TRUE(callbacks->waitForIdle());
+
+        // Test repeating requests
+        CaptureRequest captureRequest;
+
+        initializeCaptureRequestPartial(&captureRequest, streamId, it.cameraId,
+                                        settingsMetadata.size());
+
+        bool written = requestMQ->write(settingsMetadata.data(), settingsMetadata.size());
+        EXPECT_TRUE(written);
+
+        remoteRet = deviceRemote->submitRequestList({captureRequest}, true,
+                                                    [&status, &info](auto s, auto& submitInfo) {
+                                                        status = s;
+                                                        info = submitInfo;
+                                                    });
+        EXPECT_TRUE(callbacks->waitForStatus(CameraDeviceCallbacks::Status::RESULT_RECEIVED));
+        int64_t lastFrameNumber = -1;
+        remoteRet =
+            deviceRemote->cancelRepeatingRequest([&status, &lastFrameNumber](auto s, int64_t lf) {
+                status = s;
+                lastFrameNumber = lf;
+            });
+        EXPECT_TRUE(remoteRet.isOk() && status == Status::NO_ERROR);
+        EXPECT_GE(lastFrameNumber, 0);
+
+        // Test waitUntilIdle()
+        auto statusRet = deviceRemote->waitUntilIdle();
+        EXPECT_TRUE(statusRet.isOk() && statusRet == Status::NO_ERROR);
+
+        // Test deleteStream()
+        statusRet = deviceRemote->deleteStream(streamId);
+        EXPECT_TRUE(statusRet.isOk() && statusRet == Status::NO_ERROR);
+
+        remoteRet = deviceRemote->disconnect();
+        EXPECT_TRUE(remoteRet.isOk());
+    }
+    Return<Status> ret = cs->removeListener(listener);
+    EXPECT_TRUE(ret.isOk() && ret == Status::NO_ERROR);
 }
 
-}  // namespace
+}  // namespace android
+
+int main(int argc, char** argv) {
+    ::testing::AddGlobalTestEnvironment(android::CameraHidlEnvironment::Instance());
+    ::testing::InitGoogleTest(&argc, argv);
+    android::CameraHidlEnvironment::Instance()->init(&argc, argv);
+    int status = RUN_ALL_TESTS();
+    return status;
+}
