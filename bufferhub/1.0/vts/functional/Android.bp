@@ -16,6 +16,9 @@
 
 cc_test {
     name: "VtsHalBufferHubV1_0TargetTest",
+    defaults: [
+        "VtsHalTargetTestDefaults"
+    ],
     header_libs: [
         // TODO(b/118893702): remove dependency once ui/BufferHubDefs.h moved
         // off dvr_api.h
@@ -33,10 +36,6 @@ cc_test {
         "liblog",
         "libui",
         "libutils",
-    ],
-    static_libs: [
-        "VtsHalHidlTargetTestBase",
-        "libarect",
     ],
     cflags: [
         "-Wall",

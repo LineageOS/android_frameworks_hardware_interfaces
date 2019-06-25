@@ -17,6 +17,7 @@
 #define LOG_TAG "VtsHalBufferHubV1_0TargetTest"
 
 #include <VtsHalHidlTargetTestBase.h>
+#include <android-base/logging.h>
 #include <android/frameworks/bufferhub/1.0/IBufferClient.h>
 #include <android/frameworks/bufferhub/1.0/IBufferHub.h>
 #include <android/hardware_buffer.h>
@@ -32,6 +33,9 @@ using ::android::hardware::hidl_handle;
 using ::android::hardware::graphics::common::V1_2::HardwareBufferDescription;
 
 namespace android {
+namespace frameworks {
+namespace bufferhub {
+namespace vts {
 
 // Stride is an output that unknown before allocation.
 const AHardwareBuffer_Desc kDesc = {
@@ -40,6 +44,21 @@ const AHardwareBuffer_Desc kDesc = {
     /*usage=*/0ULL,  /*stride=*/0UL,
     /*rfu0=*/0UL,    /*rfu1=*/0ULL};
 const size_t kUserMetadataSize = 1;
+
+// Test environment for BufferHub HIDL HAL.
+class BufferHubHidlEnv : public ::testing::VtsHalHidlTargetTestEnvBase {
+   public:
+    // get the test environment singleton
+    static BufferHubHidlEnv* Instance() {
+        static BufferHubHidlEnv* instance = new BufferHubHidlEnv;
+        return instance;
+    }
+
+    void registerTestServices() override { registerTestService<IBufferHub>(); }
+
+   private:
+    BufferHubHidlEnv() {}
+};
 
 class HalBufferHubVts : public ::testing::VtsHalHidlTargetTestBase {
    protected:
@@ -318,4 +337,17 @@ TEST_F(HalBufferHubVts, ImportFreedBuffer) {
     EXPECT_FALSE(isValidTraits(bufferTraits2));
 }
 
+}  // namespace vts
+}  // namespace bufferhub
+}  // namespace frameworks
 }  // namespace android
+
+int main(int argc, char** argv) {
+    ::testing::AddGlobalTestEnvironment(
+        android::frameworks::bufferhub::vts::BufferHubHidlEnv::Instance());
+    ::testing::InitGoogleTest(&argc, argv);
+    android::frameworks::bufferhub::vts::BufferHubHidlEnv::Instance()->init(&argc, argv);
+    int status = RUN_ALL_TESTS();
+    LOG(INFO) << "Test result = " << status;
+    return status;
+}
