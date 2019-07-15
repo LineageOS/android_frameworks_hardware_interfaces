@@ -20,6 +20,7 @@ cc_test {
 
     srcs: ["VtsHalCameraServiceV2_0TargetTest.cpp"],
     static_libs: [
+        "android.hardware.camera.common@1.0-helper",
         "android.frameworks.cameraservice.device@2.0",
         "android.frameworks.cameraservice.service@2.0",
         "android.frameworks.cameraservice.common@2.0",
