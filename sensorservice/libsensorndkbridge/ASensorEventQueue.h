@@ -70,6 +70,9 @@ private:
     android::Mutex mLock;
     std::vector<sensors_event_t> mQueue;
 
+    android::Mutex mValidLock;
+    bool mValid;
+
     DISALLOW_COPY_AND_ASSIGN(ASensorEventQueue);
 };
 
