@@ -35,4 +35,6 @@ package android.frameworks.stats;
 @VintfStability
 interface IStats {
   oneway void reportVendorAtom(in android.frameworks.stats.VendorAtom vendorAtom);
+  void setPullAtomCallback(int atomId, in @nullable android.frameworks.stats.VendorPullAtomMetadata metadata, in android.frameworks.stats.IVendorPullAtomCallback callback);
+  void clearPullAtomCallback(int atomId);
 }
